@@ -34,5 +34,6 @@ export async function runAgentJSON<T>(
     userMessage,
     model,
   );
-  return JSON.parse(raw) as T;
+  const cleaned = raw.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
+  return JSON.parse(cleaned) as T;
 }
