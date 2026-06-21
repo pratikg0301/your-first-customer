@@ -1,0 +1,406 @@
+---
+export const prerender = true;
+---
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Your First Customer — Pitch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --teal: #2D5F52;
+      --teal-light: #3D7A6A;
+      --teal-pale: #E8F0EE;
+      --cream: #F0EDE6;
+      --cream-dark: #E8E4DC;
+      --ink: #1A1A18;
+      --ink-muted: #4A4A46;
+      --ink-faint: #8A8A84;
+    }
+
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--cream);
+      color: var(--ink);
+    }
+
+    .deck {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 72px 96px 96px;
+      opacity: 0;
+      transform: translateX(40px);
+      transition: opacity 0.35s ease, transform 0.35s ease;
+      pointer-events: none;
+    }
+
+    .slide.active {
+      opacity: 1;
+      transform: translateX(0);
+      pointer-events: all;
+    }
+
+    .slide.exit {
+      opacity: 0;
+      transform: translateX(-40px);
+    }
+
+    /* Typography */
+    .eyebrow {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--teal);
+      margin-bottom: 20px;
+    }
+
+    .h1 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: clamp(40px, 5vw, 64px);
+      font-weight: 400;
+      line-height: 1.12;
+      color: var(--ink);
+      margin-bottom: 24px;
+    }
+
+    .h2 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: clamp(28px, 3.5vw, 48px);
+      font-weight: 400;
+      line-height: 1.18;
+      color: var(--ink);
+      margin-bottom: 20px;
+    }
+
+    .body {
+      font-size: clamp(15px, 1.5vw, 18px);
+      color: var(--ink-muted);
+      line-height: 1.7;
+      max-width: 640px;
+    }
+
+    .teal { color: var(--teal); }
+
+    .divider { height: 3px; width: 48px; background: var(--teal); border-radius: 2px; margin-bottom: 28px; }
+
+    /* Stat row */
+    .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 32px 0; }
+    .stat-card { background: white; border: 1px solid var(--cream-dark); border-radius: 10px; padding: 24px 22px; }
+    .stat-n { font-family: 'Playfair Display', Georgia, serif; font-size: 40px; color: var(--teal); line-height: 1; }
+    .stat-l { font-size: 13px; color: var(--ink-muted); margin-top: 8px; line-height: 1.5; }
+
+    /* Two col */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 24px; }
+    .box { border: 1px solid var(--cream-dark); border-radius: 10px; padding: 20px; background: white; }
+    .box-label { font-size: 10px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px; }
+    .box-item { font-size: 14px; color: var(--ink-muted); padding: 7px 0; border-bottom: 1px solid var(--cream-dark); display: flex; align-items: center; gap: 10px; }
+    .box-item:last-child { border-bottom: none; }
+    .x { color: #E24B4A; font-weight: 600; font-size: 12px; }
+    .ck { color: var(--teal); font-weight: 600; font-size: 12px; }
+
+    /* Why grid */
+    .why-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 28px; }
+    .why-card { border-left: 3px solid var(--teal); padding: 18px 20px; background: white; border-radius: 0 10px 10px 0; }
+    .why-n { font-size: 10px; font-weight: 500; color: var(--teal); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; }
+    .why-t { font-size: 15px; font-weight: 500; color: var(--ink); margin-bottom: 8px; }
+    .why-d { font-size: 13px; color: var(--ink-muted); line-height: 1.6; }
+
+    /* Flow */
+    .flow { display: flex; align-items: center; gap: 8px; margin-top: 28px; flex-wrap: wrap; }
+    .flow-step { background: var(--teal); border-radius: 8px; padding: 14px 18px; }
+    .flow-n { font-size: 10px; color: rgba(255,255,255,0.55); letter-spacing: 1.2px; text-transform: uppercase; }
+    .flow-t { font-size: 14px; font-weight: 500; color: white; margin-top: 3px; }
+    .flow-arr { color: var(--ink-faint); font-size: 20px; }
+
+    /* Output grid */
+    .out-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 24px; }
+    .out-item { display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid var(--cream-dark); border-radius: 8px; background: white; }
+    .out-num { font-family: 'Playfair Display', Georgia, serif; font-size: 22px; color: var(--teal); }
+    .out-t { font-size: 13px; font-weight: 500; color: var(--ink); }
+    .out-d { font-size: 12px; color: var(--ink-muted); line-height: 1.5; }
+
+    /* CTA */
+    .cta-box { background: var(--teal); border-radius: 14px; padding: 36px 40px; margin-top: 28px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+    .cta-t { font-family: 'Playfair Display', Georgia, serif; font-size: 28px; color: white; line-height: 1.25; }
+    .cta-d { font-size: 14px; color: rgba(255,255,255,0.6); margin-top: 6px; }
+    .cta-btn { background: white; color: var(--teal); border: none; border-radius: 8px; padding: 13px 28px; font-size: 14px; font-weight: 500; cursor: pointer; font-family: 'Inter', sans-serif; text-decoration: none; }
+    .cta-btn:hover { background: var(--cream); }
+
+    .mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 20px; }
+    .mini-stat { padding: 14px; background: white; border-radius: 8px; text-align: center; border: 1px solid var(--cream-dark); }
+    .mini-n { font-family: 'Playfair Display', Georgia, serif; font-size: 24px; color: var(--teal); }
+    .mini-l { font-size: 11px; color: var(--ink-muted); margin-top: 4px; }
+
+    /* Nav */
+    nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      background: rgba(240, 237, 230, 0.92);
+      backdrop-filter: blur(8px);
+      border-top: 1px solid var(--cream-dark);
+      z-index: 100;
+    }
+
+    .nav-btn {
+      background: none;
+      border: 1px solid var(--cream-dark);
+      border-radius: 6px;
+      padding: 8px 20px;
+      font-size: 13px;
+      color: var(--ink-muted);
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: all 0.15s;
+    }
+    .nav-btn:hover { background: white; color: var(--ink); }
+    .nav-btn:disabled { opacity: 0.3; cursor: default; }
+
+    .nav-center { display: flex; align-items: center; gap: 12px; }
+    .nav-dots { display: flex; gap: 6px; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cream-dark); transition: all 0.2s; }
+    .dot.on { background: var(--teal); width: 20px; border-radius: 3px; }
+    .slide-num { font-size: 12px; color: var(--ink-faint); min-width: 36px; text-align: center; }
+
+    .tag { display: inline-block; font-size: 11px; background: var(--teal-pale); color: var(--teal); padding: 4px 10px; border-radius: 4px; margin: 3px; font-weight: 500; }
+
+    /* Logo */
+    .logo { position: fixed; top: 24px; left: 40px; font-family: 'Playfair Display', Georgia, serif; font-size: 16px; color: var(--ink); z-index: 100; }
+
+    .progress { position: fixed; top: 0; left: 0; height: 2px; background: var(--teal); transition: width 0.3s ease; z-index: 200; }
+  </style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="logo">The Align Works</div>
+
+<div class="deck">
+
+  <!-- S0: Title -->
+  <div class="slide active" data-slide="0">
+    <div class="divider"></div>
+    <div class="eyebrow">GTM Intelligence · Your First Customer</div>
+    <h1 class="h1">Most B2B founders never<br>land their <span class="teal">first customer.</span></h1>
+    <p class="body">Not because their idea is wrong.<br>Because they have no system to go to market.</p>
+    <div style="margin-top:36px; display:flex; align-items:center; gap:12px">
+      <div style="font-size:15px; font-weight:500; color:var(--ink)">Your First Customer</div>
+      <div style="width:1px; height:16px; background:var(--cream-dark)"></div>
+      <div style="font-size:15px; color:var(--ink-muted)">an AI agent swarm that changes that.</div>
+    </div>
+  </div>
+
+  <!-- S1: Problem -->
+  <div class="slide" data-slide="1">
+    <div class="eyebrow">The problem</div>
+    <h2 class="h2">Founder-led sales is broken.</h2>
+    <div class="stat-row">
+      <div class="stat-card"><div class="stat-n">90%</div><div class="stat-l">of B2B startups miss their year-one revenue target</div></div>
+      <div class="stat-card"><div class="stat-n">4.5mo</div><div class="stat-l">average time to first paying customer without a system</div></div>
+      <div class="stat-card"><div class="stat-n">$50K+</div><div class="stat-l">what a GTM consultant charges for a playbook like this</div></div>
+    </div>
+    <p class="body">Founders are domain experts — not sales strategists. They guess their ICP, cold-DM random people, burn runway, and wonder why nothing converts.</p>
+  </div>
+
+  <!-- S2: Status quo -->
+  <div class="slide" data-slide="2">
+    <div class="eyebrow">The status quo</div>
+    <h2 class="h2">What founders do today<br>— and why it fails.</h2>
+    <div class="two-col">
+      <div class="box">
+        <div class="box-label">How founders try to sell</div>
+        <div class="box-item"><span class="x">✕</span> Ask friends for warm intros</div>
+        <div class="box-item"><span class="x">✕</span> Watch YouTube cold email videos</div>
+        <div class="box-item"><span class="x">✕</span> Buy a Notion sales template</div>
+        <div class="box-item"><span class="x">✕</span> Post on LinkedIn and hope</div>
+        <div class="box-item"><span class="x">✕</span> Hire a sales hire too early</div>
+      </div>
+      <div class="box">
+        <div class="box-label">What they actually need</div>
+        <div class="box-item"><span class="ck">✓</span> A specific, validated ICP</div>
+        <div class="box-item"><span class="ck">✓</span> Ranked GTM motions for their situation</div>
+        <div class="box-item"><span class="ck">✓</span> A week-by-week execution plan</div>
+        <div class="box-item"><span class="ck">✓</span> Real target contacts to reach</div>
+        <div class="box-item"><span class="ck">✓</span> Personalised outreach templates</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S3: Solution -->
+  <div class="slide" data-slide="3">
+    <div class="eyebrow">The solution</div>
+    <h2 class="h2">Your First Customer.</h2>
+    <p class="body">An AI agent swarm that analyses your idea, builds your ideal customer profile, scores your GTM readiness, creates a 30-day outbound playbook, and hands you a list of real people to contact — in under five minutes.</p>
+    <div style="margin-top:24px; display:flex; flex-wrap:wrap; gap:4px">
+      <span class="tag">Idea screening</span>
+      <span class="tag">ICP generation</span>
+      <span class="tag">14 GTM motions ranked</span>
+      <span class="tag">30-day playbook</span>
+      <span class="tag">Target list</span>
+      <span class="tag">Cold email + LinkedIn sequences</span>
+    </div>
+    <div style="margin-top:24px; padding:16px 20px; border-left:3px solid var(--teal); background:white; border-radius:0 8px 8px 0">
+      <div style="font-size:15px; color:var(--ink-muted); line-height:1.6">What used to cost <strong style="color:var(--ink)">$50,000 and 3 months</strong> of consulting now takes <strong style="color:var(--teal)">5 minutes</strong> — personalised to your exact product, team, and market.</div>
+    </div>
+  </div>
+
+  <!-- S4: Why now -->
+  <div class="slide" data-slide="4">
+    <div class="eyebrow">Why now</div>
+    <h2 class="h2">Three forces just converged.</h2>
+    <div class="why-grid">
+      <div class="why-card">
+        <div class="why-n">Force 01</div>
+        <div class="why-t">LLMs that reason about strategy</div>
+        <div class="why-d">Modern AI doesn't just generate text — it evaluates markets, scores ICPs, and constructs executable plans. That wasn't possible two years ago.</div>
+      </div>
+      <div class="why-card">
+        <div class="why-n">Force 02</div>
+        <div class="why-t">200M+ professional profiles, accessible via API</div>
+        <div class="why-d">Enrichment data that once required a $30K/yr contract is now programmable. We identify real buyers matching your ICP in seconds.</div>
+      </div>
+      <div class="why-card">
+        <div class="why-n">Force 03</div>
+        <div class="why-t">Edge infrastructure with zero cold start</div>
+        <div class="why-d">Cloudflare's global edge means every agent call runs in milliseconds, anywhere. The whole pipeline completes before a consultant could open their deck.</div>
+      </div>
+    </div>
+    <p class="body" style="margin-top:24px">Each force alone is interesting. Together, they make something that was impossible two years ago feel obvious today.</p>
+  </div>
+
+  <!-- S5: How -->
+  <div class="slide" data-slide="5">
+    <div class="eyebrow">How it works</div>
+    <h2 class="h2">A five-layer agent swarm.</h2>
+    <div class="flow">
+      <div class="flow-step"><div class="flow-n">Layer 1</div><div class="flow-t">Enrichment</div></div>
+      <div class="flow-arr">→</div>
+      <div class="flow-step"><div class="flow-n">Layer 2</div><div class="flow-t">Screening</div></div>
+      <div class="flow-arr">→</div>
+      <div class="flow-step"><div class="flow-n">Layer 3</div><div class="flow-t">ICP Build</div></div>
+      <div class="flow-arr">→</div>
+      <div class="flow-step"><div class="flow-n">Layer 4</div><div class="flow-t">Playbook</div></div>
+      <div class="flow-arr">→</div>
+      <div class="flow-step"><div class="flow-n">Layer 5</div><div class="flow-t">Targets</div></div>
+    </div>
+    <p class="body" style="margin-top:24px">The founder provides their LinkedIn, company URL, and a pitch deck PDF. Three enrichment agents run in parallel — then scoring, then ICP, then playbook and target search simultaneously. Every agent is specialised. Every output feeds the next.</p>
+    <div style="margin-top:18px; display:flex; gap:10px; flex-wrap:wrap">
+      <span style="font-size:12px; color:var(--ink-muted); padding:5px 12px; background:white; border-radius:5px; border:1px solid var(--cream-dark)">3 parallel enrichment agents</span>
+      <span style="font-size:12px; color:var(--ink-muted); padding:5px 12px; background:white; border-radius:5px; border:1px solid var(--cream-dark)">14 GTM motions scored</span>
+      <span style="font-size:12px; color:var(--ink-muted); padding:5px 12px; background:white; border-radius:5px; border:1px solid var(--cream-dark)">2 human review gates</span>
+      <span style="font-size:12px; color:var(--ink-muted); padding:5px 12px; background:white; border-radius:5px; border:1px solid var(--cream-dark)">25 matched contacts generated</span>
+    </div>
+  </div>
+
+  <!-- S6: Outputs -->
+  <div class="slide" data-slide="6">
+    <div class="eyebrow">What you get</div>
+    <h2 class="h2">A complete GTM system,<br>not a generic template.</h2>
+    <div class="out-grid">
+      <div class="out-item"><div class="out-num">01</div><div class="out-t">Idea screening score</div><div class="out-d">Market demand, ICP clarity, differentiator strength, sales readiness — scored /100</div></div>
+      <div class="out-item"><div class="out-num">02</div><div class="out-t">Ideal customer profile</div><div class="out-d">Persona, company size, industry, deal size, objections, sales motion — specific to your product</div></div>
+      <div class="out-item"><div class="out-num">03</div><div class="out-t">14 GTM motions ranked</div><div class="out-d">Every motion scored for your exact situation — why it fits, why it might not</div></div>
+      <div class="out-item"><div class="out-num">04</div><div class="out-t">30-day outbound playbook</div><div class="out-d">Week-by-week actions, channels, owners, and a low-risk pilot offer to close fast</div></div>
+      <div class="out-item"><div class="out-num">05</div><div class="out-t">Cold email + LinkedIn sequences</div><div class="out-d">Personalised to your ICP — ready to send today, not a generic fill-in-the-blank template</div></div>
+      <div class="out-item"><div class="out-num">06</div><div class="out-t">25 matched target contacts</div><div class="out-d">Real people at real companies, filtered to your exact ICP criteria — with LinkedIn links</div></div>
+    </div>
+  </div>
+
+  <!-- S7: CTA -->
+  <div class="slide" data-slide="7">
+    <div class="eyebrow">Try it</div>
+    <h2 class="h2">Five minutes to your<br>first GTM playbook.</h2>
+    <p class="body">Built on Cloudflare's global edge. Powered by Claude. Sessions are saved — run it for every venture you're working on.</p>
+    <div class="cta-box">
+      <div>
+        <div class="cta-t">Your First Customer</div>
+        <div class="cta-d">by The Align Works · your-first-customer.pages.dev</div>
+      </div>
+      <a class="cta-btn" href="https://your-first-customer.pages.dev" target="_blank">Try it now →</a>
+    </div>
+    <div class="mini-stats">
+      <div class="mini-stat"><div class="mini-n">5 min</div><div class="mini-l">sign-up to full playbook</div></div>
+      <div class="mini-stat"><div class="mini-n">Free</div><div class="mini-l">to start · sessions saved</div></div>
+      <div class="mini-stat"><div class="mini-n">8 agents</div><div class="mini-l">working in parallel for you</div></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Nav -->
+<nav>
+  <button class="nav-btn" id="prev" disabled>← Prev</button>
+  <div class="nav-center">
+    <div class="nav-dots" id="dots"></div>
+    <span class="slide-num" id="counter">1 / 8</span>
+  </div>
+  <button class="nav-btn" id="next">Next →</button>
+</nav>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let cur = 0;
+
+  const dotsEl = document.getElementById('dots');
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' on' : '');
+    dotsEl.appendChild(d);
+  }
+
+  function update() {
+    slides.forEach((s, i) => {
+      s.classList.toggle('active', i === cur);
+      s.classList.toggle('exit', i < cur);
+    });
+    dotsEl.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('on', i === cur));
+    document.getElementById('counter').textContent = (cur + 1) + ' / ' + total;
+    document.getElementById('prev').disabled = cur === 0;
+    document.getElementById('next').disabled = cur === total - 1;
+    document.getElementById('progress').style.width = ((cur + 1) / total * 100) + '%';
+  }
+
+  function go(dir) {
+    cur = Math.max(0, Math.min(total - 1, cur + dir));
+    update();
+  }
+
+  document.getElementById('prev').addEventListener('click', () => go(-1));
+  document.getElementById('next').addEventListener('click', () => go(1));
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); go(1); }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); go(-1); }
+  });
+
+  update();
+</script>
+</body>
+</html>
