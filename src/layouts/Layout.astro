@@ -15,19 +15,21 @@ const { title, description = 'Land your first paying customer — guaranteed.' }
     <title>{title} | Your First Customer</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
   </head>
-  <body class="h-full bg-white font-sans antialiased text-gray-900">
-    <nav class="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
-      <a href="/" class="flex items-center gap-2 font-medium text-gray-900">
-        <span class="w-2 h-2 rounded-full bg-brand-teal inline-block"></span>
-        Your First Customer
-        <span class="text-xs text-gray-400 font-normal ml-1">by AlignWorks</span>
+  <body class="h-full bg-cream font-sans text-ink antialiased">
+    <nav class="px-8 py-5 flex items-center justify-between border-b border-cream-dark">
+      <a href="https://thealignworks.com" class="font-serif text-lg font-medium text-ink tracking-tight">
+        The Align Works
       </a>
-      <a
-        href="/dashboard"
-        class="text-sm text-gray-500 hover:text-gray-900 transition-colors"
-      >Dashboard →</a>
+      <div class="flex items-center gap-8">
+        <a href="https://thealignworks.com" class="text-sm text-ink-muted hover:text-ink transition-colors">Home</a>
+        <a href="https://thealignworks.com/methodology" class="text-sm text-ink-muted hover:text-ink transition-colors">Methodology</a>
+        <a href="https://thealignworks.com/about" class="text-sm text-ink-muted hover:text-ink transition-colors">About</a>
+        <a href="https://thealignworks.com/book" class="bg-teal text-white text-sm px-5 py-2.5 rounded hover:bg-teal-light transition-colors font-medium">
+          Book a call
+        </a>
+      </div>
     </nav>
     <main>
       <slot />

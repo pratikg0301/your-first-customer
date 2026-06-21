@@ -10,70 +10,99 @@ interface ScoreResult {
   recommended_icp: string;
 }
 
-const STEP_LABELS: Partial<Record<Stage, string>> = {
-  signup: 'Create account',
-  urls: 'Your links',
-  confirm: 'Confirm details',
-  score_ready: 'Your score',
-};
 const STEPS = ['signup', 'urls', 'confirm', 'score_ready'];
 
-function StepDots({ stage }: { stage: Stage }) {
+function StepBar({ stage }: { stage: Stage }) {
   const idx = STEPS.indexOf(stage);
   return (
-    <div className="flex gap-2 items-center">
-      {STEPS.map((s, i) => (
-        <div key={s} className={`h-1.5 rounded-full transition-all ${i < idx ? 'w-4 bg-indigo-300' : i === idx ? 'w-6 bg-indigo-600' : 'w-4 bg-gray-200'}`} />
+    <div className="flex gap-1.5 mb-8">
+      {STEPS.map((_, i) => (
+        <div key={i} className={`h-0.5 flex-1 rounded-full transition-all duration-300 ${i <= idx ? 'bg-teal' : 'bg-cream-dark'}`} />
       ))}
     </div>
   );
 }
 
-function Spinner({ label }: { label: string }) {
+function Label({ children }: { children: React.ReactNode }) {
+  return <label className="block text-xs font-medium text-ink-muted uppercase tracking-wide mb-2">{children}</label>;
+}
+
+function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <div className="max-w-lg mx-auto px-6 py-24 text-center">
-      <div className="w-10 h-10 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-6" />
-      <p className="text-lg font-medium text-gray-900">{label}</p>
+    <input {...props}
+      className="w-full bg-white border border-cream-dark rounded px-4 py-3 text-sm text-ink placeholder-ink-faint focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal transition-colors" />
+  );
+}
+
+function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea {...props}
+      className="w-full bg-white border border-cream-dark rounded px-4 py-3 text-sm text-ink placeholder-ink-faint focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal transition-colors resize-none" />
+  );
+}
+
+function PrimaryBtn({ children, onClick, type = 'submit', disabled }: { children: React.ReactNode; onClick?: () => void; type?: 'submit' | 'button'; disabled?: boolean }) {
+  return (
+    <button type={type} onClick={onClick} disabled={disabled}
+      className="w-full bg-teal text-white text-sm font-medium px-6 py-3.5 rounded hover:bg-teal-light transition-colors disabled:opacity-50">
+      {children}
+    </button>
+  );
+}
+
+function GhostBtn({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick}
+      className="px-5 py-3.5 border border-cream-dark rounded text-sm text-ink-muted hover:bg-cream-dark transition-colors">
+      {children}
+    </button>
+  );
+}
+
+function Spinner({ label, sub }: { label: string; sub?: string }) {
+  return (
+    <div className="max-w-lg mx-auto px-8 py-32 text-center">
+      <div className="w-8 h-8 border-2 border-teal border-t-transparent rounded-full animate-spin mx-auto mb-8" />
+      <p className="font-serif text-xl text-ink">{label}</p>
+      {sub && <p className="text-sm text-ink-muted mt-2">{sub}</p>}
     </div>
   );
+}
+
+function AutoBadge() {
+  return <span className="ml-2 text-xs bg-teal-pale text-teal px-2 py-0.5 rounded-sm font-medium">Auto-filled</span>;
 }
 
 export default function IntakeFlow() {
   const [stage, setStage] = useState<Stage>('signup');
   const [account, setAccount] = useState<Account | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isLogin, setIsLogin] = useState(false);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLogin, setIsLogin] = useState(false);
-
   const [linkedinUrl, setLinkedinUrl] = useState('');
   const [companyUrl, setCompanyUrl] = useState('');
   const [companyLinkedin, setCompanyLinkedin] = useState('');
-
   const [productDescription, setProductDescription] = useState('');
   const [problemSolved, setProblemSolved] = useState('');
   const [industryFocus, setIndustryFocus] = useState('');
   const [enrichment, setEnrichment] = useState<Record<string, unknown> | null>(null);
-
+  const [wasAutoFilled, setWasAutoFilled] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [score, setScore] = useState<ScoreResult | null>(null);
 
   const dimLabel: Record<string, string> = {
     market_demand: 'Market demand',
     icp_clarity: 'ICP clarity',
-    differentiator_strength: 'Differentiator',
+    differentiator_strength: 'Differentiator strength',
     sales_readiness: 'Sales readiness',
   };
-  const dimColor = (v: number) => v >= 75 ? 'bg-emerald-500' : v >= 55 ? 'bg-amber-400' : 'bg-red-400';
-  const insightColor = (t: string) => t === 'strength' ? 'bg-emerald-50 text-emerald-700' : t === 'warning' ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700';
-  const insightIcon = (t: string) => t === 'strength' ? '✓' : t === 'warning' ? '⚠' : '→';
 
   async function handleAuth(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
-    const res = await fetch(endpoint, {
+    const res = await fetch(isLogin ? '/api/auth/login' : '/api/auth/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -88,21 +117,23 @@ export default function IntakeFlow() {
   async function handleUrls(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!linkedinUrl) { setError('LinkedIn URL is required'); return; }
-    setStage('enriching');
+    if (!linkedinUrl) { setError('Your LinkedIn URL is required'); return; }
 
-    const res = await fetch('/api/agents/enrich-urls', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ linkedin_url: linkedinUrl, company_url: companyUrl || undefined, company_linkedin: companyLinkedin || undefined }),
-    });
-    const data = await res.json() as any;
-
-    if (res.ok && !data.error) {
-      setProductDescription(data.product_description ?? '');
-      setProblemSolved(data.problem_solved ?? '');
-      setIndustryFocus(data.industry_focus ?? '');
-      setEnrichment(data.enrichment ?? null);
+    if (companyUrl || companyLinkedin) {
+      setStage('enriching');
+      const res = await fetch('/api/agents/enrich-urls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linkedin_url: linkedinUrl, company_url: companyUrl || undefined, company_linkedin: companyLinkedin || undefined }),
+      });
+      const data = await res.json() as any;
+      if (res.ok && !data.error) {
+        setProductDescription(data.product_description ?? '');
+        setProblemSolved(data.problem_solved ?? '');
+        setIndustryFocus(data.industry_focus ?? '');
+        setEnrichment(data.enrichment ?? null);
+        setWasAutoFilled(true);
+      }
     }
     setStage('confirm');
   }
@@ -124,10 +155,7 @@ export default function IntakeFlow() {
           account_id: account!.id,
         }),
       });
-      if (!sessionRes.ok) {
-        const err = await sessionRes.json() as any;
-        throw new Error(err.error ?? 'Failed to create session');
-      }
+      if (!sessionRes.ok) throw new Error((await sessionRes.json() as any).error ?? 'Session error');
       const { sessionId: sid, enrichment: enr } = await sessionRes.json() as any;
       setSessionId(sid);
       if (enr) setEnrichment(enr);
@@ -145,8 +173,7 @@ export default function IntakeFlow() {
         const err = await scoreRes.json() as any;
         throw new Error(err.error ?? 'Scoring failed');
       }
-      const scoreData = await scoreRes.json() as ScoreResult;
-      setScore(scoreData);
+      setScore(await scoreRes.json() as ScoreResult);
       setStage('score_ready');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -157,198 +184,188 @@ export default function IntakeFlow() {
   async function buildPlaybook() {
     if (!sessionId) return;
     setStage('icp');
-
     const icpRes = await fetch('/api/agents/icp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId,
-        enrichment: enrichment ?? {},
-        founderContext: `Product: ${productDescription}. Problem: ${problemSolved}. Industry: ${industryFocus}.`,
-      }),
+      body: JSON.stringify({ sessionId, enrichment: enrichment ?? {}, founderContext: `Product: ${productDescription}. Problem: ${problemSolved}. Industry: ${industryFocus}.` }),
     });
     const { icp } = await icpRes.json() as any;
-
     await fetch('/api/agents/playbook', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId,
-        icp,
-        founderContext: `Product: ${productDescription}. Problem: ${problemSolved}.`,
-      }),
+      body: JSON.stringify({ sessionId, icp, founderContext: `Product: ${productDescription}. Problem: ${problemSolved}.` }),
     });
-
     window.location.href = `/dashboard?session=${sessionId}`;
   }
 
-  if (stage === 'enriching') return <Spinner label="Reading your profile and company data..." />;
-  if (stage === 'scoring') return <Spinner label="Scoring your idea..." />;
-  if (stage === 'icp') return <Spinner label="Building your GTM playbook..." />;
+  if (stage === 'enriching') return <Spinner label="Reading your profile..." sub="Pulling company and founder data to auto-fill your details." />;
+  if (stage === 'scoring') return <Spinner label="Screening your idea..." sub="Our AI is scoring market demand, ICP clarity, and sales readiness." />;
+  if (stage === 'icp') return <Spinner label="Building your GTM playbook..." sub="This takes about 30 seconds." />;
 
   return (
-    <div className="max-w-xl mx-auto px-6 py-10">
+    <div className="min-h-screen bg-cream">
+      <div className="max-w-lg mx-auto px-8 py-16">
 
-      {/* SIGNUP / LOGIN */}
-      {stage === 'signup' && (
-        <>
-          <div className="mb-8">
-            <StepDots stage={stage} />
-            <h1 className="text-2xl font-medium text-gray-900 mt-4">{isLogin ? 'Welcome back' : 'Create your account'}</h1>
-            <p className="text-gray-500 text-sm mt-1">Your progress and playbook are saved to your account.</p>
-          </div>
-          {error && <div className="mb-5 p-3 bg-red-50 border border-red-100 rounded-lg text-sm text-red-700">{error}</div>}
-          <form onSubmit={handleAuth} className="space-y-4">
-            <div>
-              <label className="block text-sm text-gray-600 mb-1.5">Email address</label>
-              <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1.5">Password {!isLogin && <span className="text-gray-400">(min 8 characters)</span>}</label>
-              <input type="password" required minLength={8} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-            <button type="submit" className="w-full bg-indigo-600 text-white rounded-lg py-3 font-medium hover:bg-indigo-700 transition-colors">
-              {isLogin ? 'Sign in →' : 'Create account →'}
-            </button>
-            <p className="text-center text-sm text-gray-500">
-              {isLogin ? "Don't have an account? " : 'Already have an account? '}
-              <button type="button" onClick={() => { setIsLogin(!isLogin); setError(null); }} className="text-indigo-600 hover:underline">
-                {isLogin ? 'Sign up' : 'Sign in'}
-              </button>
-            </p>
-          </form>
-        </>
-      )}
-
-      {/* URLS */}
-      {stage === 'urls' && (
-        <>
-          <div className="mb-6">
-            <StepDots stage={stage} />
-            <h1 className="text-2xl font-medium text-gray-900 mt-4">Your links</h1>
-            <div className="mt-3 bg-indigo-50 border border-indigo-100 rounded-lg p-4 text-sm text-indigo-800">
-              <strong className="font-medium">Why we ask for these:</strong> Providing your LinkedIn and company website lets our AI automatically fill in your product description, problem statement, and industry — saving you time and giving us richer data to work with.
-            </div>
-          </div>
-          {error && <div className="mb-5 p-3 bg-red-50 border border-red-100 rounded-lg text-sm text-red-700">{error}</div>}
-          <form onSubmit={handleUrls} className="space-y-4">
-            <div>
-              <label className="block text-sm text-gray-600 mb-1.5">Your LinkedIn URL <span className="text-red-400">*</span></label>
-              <input type="url" required value={linkedinUrl} onChange={e => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/yourname"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1.5">Company website <span className="text-gray-400">(optional — enables auto-fill)</span></label>
-              <input type="url" value={companyUrl} onChange={e => setCompanyUrl(e.target.value)} placeholder="https://yourcompany.com"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1.5">Company LinkedIn <span className="text-gray-400">(optional — enables auto-fill)</span></label>
-              <input type="url" value={companyLinkedin} onChange={e => setCompanyLinkedin(e.target.value)} placeholder="https://linkedin.com/company/yourcompany"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-            <button type="submit" className="w-full bg-indigo-600 text-white rounded-lg py-3 font-medium hover:bg-indigo-700 transition-colors">
-              {(companyUrl || companyLinkedin) ? 'Fetch my details →' : 'Continue →'}
-            </button>
-          </form>
-        </>
-      )}
-
-      {/* CONFIRM AUTO-FILLED DETAILS */}
-      {stage === 'confirm' && (
-        <>
-          <div className="mb-6">
-            <StepDots stage={stage} />
-            <h1 className="text-2xl font-medium text-gray-900 mt-4">Confirm your details</h1>
-            <p className="text-gray-500 text-sm mt-1">
-              {enrichment ? 'We filled these in from your profile — edit anything that looks off.' : 'Tell us about your idea so we can score it accurately.'}
-            </p>
-          </div>
-          {error && <div className="mb-5 p-3 bg-red-50 border border-red-100 rounded-lg text-sm text-red-700">{error}</div>}
-          <form onSubmit={handleConfirm} className="space-y-4">
-            <div>
-              <label className="block text-sm text-gray-600 mb-1.5">
-                What's your product or service?
-                {enrichment && <span className="ml-2 text-xs text-indigo-500 font-medium">✦ Auto-filled</span>}
-              </label>
-              <input type="text" required value={productDescription} onChange={e => setProductDescription(e.target.value)}
-                placeholder="e.g. AI scheduling tool for dental practices"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1.5">
-                What problem does it solve?
-                {enrichment && <span className="ml-2 text-xs text-indigo-500 font-medium">✦ Auto-filled</span>}
-              </label>
-              <textarea required rows={3} value={problemSolved} onChange={e => setProblemSolved(e.target.value)}
-                placeholder="Describe the specific pain your first customer feels."
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1.5">
-                Target industry
-                {enrichment && <span className="ml-2 text-xs text-indigo-500 font-medium">✦ Auto-filled</span>}
-              </label>
-              <input type="text" value={industryFocus} onChange={e => setIndustryFocus(e.target.value)}
-                placeholder="e.g. Healthcare, SaaS, Real Estate"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-            <div className="flex gap-3 pt-1">
-              <button type="button" onClick={() => setStage('urls')} className="px-4 py-3 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
-                ← Back
-              </button>
-              <button type="submit" className="flex-1 bg-indigo-600 text-white rounded-lg py-3 font-medium hover:bg-indigo-700 transition-colors">
-                Screen my idea →
-              </button>
-            </div>
-          </form>
-        </>
-      )}
-
-      {/* SCORE RESULT */}
-      {stage === 'score_ready' && score && (
-        <>
-          <div className="mb-6">
-            <StepDots stage={stage} />
-            <h1 className="text-2xl font-medium text-gray-900 mt-4">
-              Your idea scored <span className="text-emerald-600">{score.overall_score} / 100</span>
+        {/* SIGNUP */}
+        {stage === 'signup' && (
+          <>
+            <StepBar stage={stage} />
+            <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-3">Your First Customer</p>
+            <h1 className="font-serif text-3xl text-ink leading-tight mb-2">
+              {isLogin ? 'Welcome back.' : 'Let\'s get you your first customer.'}
             </h1>
-            <p className="text-gray-500 text-sm mt-1">
-              Best first target: <strong className="text-gray-700">{score.recommended_icp}</strong>
+            <p className="text-sm text-ink-muted mb-8 leading-relaxed">
+              {isLogin ? 'Sign in to access your dashboard and playbook.' : 'Create a free account. Your progress, playbook, and targets are saved so you can pick up where you left off.'}
             </p>
-          </div>
 
-          <div className="space-y-3 mb-6">
-            {Object.entries(score.dimensions).map(([key, val]) => (
-              <div key={key}>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-gray-700">{dimLabel[key] ?? key}</span>
-                  <span className="font-medium text-gray-900">{val}</span>
-                </div>
-                <div className="h-1.5 bg-gray-100 rounded-full">
-                  <div className={`h-1.5 rounded-full ${dimColor(val)}`} style={{ width: `${val}%` }} />
+            {error && <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded text-sm text-red-700">{error}</div>}
+
+            <form onSubmit={handleAuth} className="space-y-4">
+              <div>
+                <Label>Email address</Label>
+                <Input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" />
+              </div>
+              <div>
+                <Label>Password {!isLogin && <span className="normal-case text-ink-faint font-normal tracking-normal">— min 8 characters</span>}</Label>
+                <Input type="password" required minLength={8} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
+              </div>
+              <div className="pt-1">
+                <PrimaryBtn>{isLogin ? 'Sign in' : 'Create account'} →</PrimaryBtn>
+              </div>
+            </form>
+
+            <p className="text-center text-sm text-ink-muted mt-6">
+              {isLogin ? "Don't have an account? " : 'Already have an account? '}
+              <button type="button" onClick={() => { setIsLogin(!isLogin); setError(null); }} className="text-teal hover:underline">
+                {isLogin ? 'Sign up free' : 'Sign in'}
+              </button>
+            </p>
+          </>
+        )}
+
+        {/* URLS */}
+        {stage === 'urls' && (
+          <>
+            <StepBar stage={stage} />
+            <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-3">Step 1 of 3</p>
+            <h1 className="font-serif text-3xl text-ink leading-tight mb-2">Your links</h1>
+
+            <div className="bg-teal-pale border border-teal/20 rounded p-4 mb-8">
+              <p className="text-sm text-teal leading-relaxed">
+                <strong className="font-medium">Why this speeds things up:</strong> Providing your company website and LinkedIn lets us auto-fill your product description, problem statement, and target industry — so you spend less time typing and more time closing.
+              </p>
+            </div>
+
+            {error && <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded text-sm text-red-700">{error}</div>}
+
+            <form onSubmit={handleUrls} className="space-y-4">
+              <div>
+                <Label>Your LinkedIn URL <span className="text-teal normal-case font-normal tracking-normal">required</span></Label>
+                <Input type="url" required value={linkedinUrl} onChange={e => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/yourname" />
+              </div>
+              <div>
+                <Label>Company website <span className="text-ink-faint normal-case font-normal tracking-normal">optional · enables auto-fill</span></Label>
+                <Input type="url" value={companyUrl} onChange={e => setCompanyUrl(e.target.value)} placeholder="https://yourcompany.com" />
+              </div>
+              <div>
+                <Label>Company LinkedIn <span className="text-ink-faint normal-case font-normal tracking-normal">optional · enables auto-fill</span></Label>
+                <Input type="url" value={companyLinkedin} onChange={e => setCompanyLinkedin(e.target.value)} placeholder="https://linkedin.com/company/yourcompany" />
+              </div>
+              <div className="pt-1">
+                <PrimaryBtn>{(companyUrl || companyLinkedin) ? 'Fetch my details →' : 'Continue →'}</PrimaryBtn>
+              </div>
+            </form>
+          </>
+        )}
+
+        {/* CONFIRM */}
+        {stage === 'confirm' && (
+          <>
+            <StepBar stage={stage} />
+            <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-3">Step 2 of 3</p>
+            <h1 className="font-serif text-3xl text-ink leading-tight mb-2">
+              {wasAutoFilled ? 'We filled in the details.' : 'Tell us about your idea.'}
+            </h1>
+            <p className="text-sm text-ink-muted mb-8 leading-relaxed">
+              {wasAutoFilled ? 'Review and edit anything that looks off — this shapes your score and playbook.' : 'Be specific. The more concrete you are, the sharper your playbook.'}
+            </p>
+
+            {error && <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded text-sm text-red-700">{error}</div>}
+
+            <form onSubmit={handleConfirm} className="space-y-5">
+              <div>
+                <Label>Product or service {wasAutoFilled && <AutoBadge />}</Label>
+                <Input type="text" required value={productDescription} onChange={e => setProductDescription(e.target.value)} placeholder="e.g. AI scheduling tool for dental practices" />
+              </div>
+              <div>
+                <Label>Problem you solve {wasAutoFilled && <AutoBadge />}</Label>
+                <Textarea required rows={4} value={problemSolved} onChange={e => setProblemSolved(e.target.value)} placeholder="Describe the specific pain your first customer feels. Include numbers if you have them." />
+              </div>
+              <div>
+                <Label>Target industry {wasAutoFilled && <AutoBadge />}</Label>
+                <Input type="text" value={industryFocus} onChange={e => setIndustryFocus(e.target.value)} placeholder="e.g. Healthcare, SaaS, Real Estate" />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <GhostBtn onClick={() => setStage('urls')}>← Back</GhostBtn>
+                <div className="flex-1">
+                  <PrimaryBtn>Screen my idea →</PrimaryBtn>
                 </div>
               </div>
-            ))}
-          </div>
+            </form>
+          </>
+        )}
 
-          <div className="space-y-2 mb-6">
-            {score.insights.map((ins, i) => (
-              <div key={i} className={`flex gap-3 rounded-lg p-3 text-sm ${insightColor(ins.type)}`}>
-                <span className="font-medium flex-shrink-0 mt-0.5">{insightIcon(ins.type)}</span>
-                <span>{ins.text}</span>
-              </div>
-            ))}
-          </div>
+        {/* SCORE */}
+        {stage === 'score_ready' && score && (
+          <>
+            <StepBar stage={stage} />
+            <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-3">Step 3 of 3</p>
+            <h1 className="font-serif text-3xl text-ink leading-tight mb-1">
+              Your idea scored <span className="text-teal">{score.overall_score}/100</span>
+            </h1>
+            <p className="text-sm text-ink-muted mb-8 leading-relaxed">
+              Best first target: <span className="text-ink font-medium">{score.recommended_icp}</span>
+            </p>
 
-          <button onClick={buildPlaybook} className="w-full bg-indigo-600 text-white rounded-lg py-3 font-medium hover:bg-indigo-700 transition-colors">
-            Build my GTM playbook →
-          </button>
-        </>
-      )}
+            <div className="space-y-4 mb-8">
+              {Object.entries(score.dimensions).map(([key, val]) => (
+                <div key={key}>
+                  <div className="flex justify-between text-sm mb-1.5">
+                    <span className="text-ink-muted">{dimLabel[key] ?? key}</span>
+                    <span className="font-medium text-ink">{val}</span>
+                  </div>
+                  <div className="h-1 bg-cream-dark rounded-full">
+                    <div
+                      className={`h-1 rounded-full transition-all duration-500 ${val >= 75 ? 'bg-teal' : val >= 55 ? 'bg-amber-400' : 'bg-red-400'}`}
+                      style={{ width: `${val}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
 
+            <div className="space-y-3 mb-8">
+              {score.insights.map((ins, i) => {
+                const styles = ins.type === 'strength'
+                  ? 'bg-teal-pale border-teal/20 text-teal'
+                  : ins.type === 'warning'
+                  ? 'bg-amber-50 border-amber-100 text-amber-800'
+                  : 'bg-cream-dark border-cream-dark text-ink-muted';
+                const icon = ins.type === 'strength' ? '✓' : ins.type === 'warning' ? '⚠' : '→';
+                return (
+                  <div key={i} className={`flex gap-3 border rounded p-4 text-sm leading-relaxed ${styles}`}>
+                    <span className="font-medium flex-shrink-0">{icon}</span>
+                    <span>{ins.text}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <PrimaryBtn type="button" onClick={buildPlaybook}>Build my GTM playbook →</PrimaryBtn>
+          </>
+        )}
+
+      </div>
     </div>
   );
 }
