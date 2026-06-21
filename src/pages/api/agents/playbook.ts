@@ -21,51 +21,47 @@ Also produce:
 Return valid JSON only.`;
 
 export const POST: APIRoute = async ({ request, locals }) => {
-  const env = locals.runtime.env as Env;
-  const body = await request.json() as {
-    sessionId: string;
-    icp: Record<string, unknown>;
-    founderContext: string;
-  };
+  try {
+    const env = (locals as any).runtime?.env as Env;
+    const body = await request.json() as {
+      sessionId: string;
+      icp: Record<string, unknown>;
+      founderContext: string;
+    };
 
-  const client = getClaudeClient(env.ANTHROPIC_API_KEY);
+    const client = getClaudeClient(env.ANTHROPIC_API_KEY);
 
-  const [playbook, targets] = await Promise.all([
-    runAgentJSON(
-      client,
-      SYSTEM_PROMPT,
-      `Founder context: ${body.founderContext}\n\nICP: ${JSON.stringify(body.icp, null, 2)}`,
-    ),
-    searchPeople(
-      {
-        titles: [(body.icp as any)?.persona?.title],
-        industries: (body.icp as any)?.company_profile?.industries,
-        employee_count_min: (body.icp as any)?.company_profile?.employee_range?.min,
-        employee_count_max: (body.icp as any)?.company_profile?.employee_range?.max,
-        countries: (body.icp as any)?.company_profile?.geographies,
-        per_page: 25,
-      },
-      env.APOLLO_API_KEY,
-    ),
-  ]);
+    const [playbook, targets] = await Promise.all([
+      runAgentJSON(
+        client,
+        SYSTEM_PROMPT,
+        `Founder context: ${body.founderContext}\n\nICP: ${JSON.stringify(body.icp, null, 2)}`,
+      ),
+      searchPeople(
+        {
+          titles: [(body.icp as any)?.persona?.title],
+          industries: (body.icp as any)?.company_profile?.industries,
+          employee_count_min: (body.icp as any)?.company_profile?.employee_range?.min,
+          employee_count_max: (body.icp as any)?.company_profile?.employee_range?.max,
+          countries: (body.icp as any)?.company_profile?.geographies,
+          per_page: 25,
+        },
+        env.APOLLO_API_KEY,
+      ),
+    ]);
 
-  const doId = env.FOUNDER_SESSION.idFromName(body.sessionId);
-  const stub = env.FOUNDER_SESSION.get(doId);
-  await stub.fetch(new Request('https://do/update', {
-    method: 'POST',
-    body: JSON.stringify({ playbook, targets, stage: 'playbook_ready' }),
-  }));
+    await env.DB.prepare(
+      `UPDATE sessions SET playbook_json = ?, stage = 'playbook_ready', updated_at = unixepoch() WHERE id = ?`
+    ).bind(JSON.stringify(playbook), body.sessionId).run();
 
-  await env.DB.prepare(
-    `UPDATE sessions SET playbook_json = ?, stage = 'playbook_ready', updated_at = unixepoch() WHERE id = ?`
-  ).bind(JSON.stringify(playbook), body.sessionId).run();
-
-  return Response.json({ playbook, targets });
+    return Response.json({ playbook, targets });
+  } catch (err) {
+    return Response.json({ error: String(err) }, { status: 500 });
+  }
 };
 
 interface Env {
   DB: D1Database;
-  FOUNDER_SESSION: DurableObjectNamespace;
   ANTHROPIC_API_KEY: string;
   APOLLO_API_KEY: string;
 }

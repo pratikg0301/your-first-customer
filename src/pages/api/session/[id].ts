@@ -1,18 +1,41 @@
 import type { APIRoute } from 'astro';
 
 export const GET: APIRoute = async ({ params, locals }) => {
-  const env = locals.runtime.env as Env;
-  const sessionId = params.id!;
+  try {
+    const env = (locals as any).runtime?.env as Env;
+    const sessionId = params.id!;
 
-  const doId = env.FOUNDER_SESSION.idFromName(sessionId);
-  const stub = env.FOUNDER_SESSION.get(doId);
-  const res = await stub.fetch(new Request('https://do/state'));
+    const session = await env.DB.prepare(
+      `SELECT s.*, e.data_json as enrichment_json
+       FROM sessions s
+       LEFT JOIN enrichments e ON e.founder_id = s.founder_id
+       WHERE s.id = ?
+       ORDER BY e.cached_at DESC
+       LIMIT 1`
+    ).bind(sessionId).first();
 
-  return new Response(res.body, {
-    headers: { 'Content-Type': 'application/json' },
-  });
+    if (!session) {
+      return Response.json({ error: 'Session not found' }, { status: 404 });
+    }
+
+    const targets = await env.DB.prepare(
+      `SELECT * FROM targets WHERE session_id = ? ORDER BY created_at DESC`
+    ).bind(sessionId).all();
+
+    return Response.json({
+      stage: session.stage,
+      score: session.score,
+      icp: session.icp_json ? JSON.parse(session.icp_json as string) : null,
+      playbook: session.playbook_json ? JSON.parse(session.playbook_json as string) : null,
+      enrichment: session.enrichment_json ? JSON.parse(session.enrichment_json as string) : null,
+      targets: targets.results ?? [],
+    });
+
+  } catch (err) {
+    return Response.json({ error: String(err) }, { status: 500 });
+  }
 };
 
 interface Env {
-  FOUNDER_SESSION: DurableObjectNamespace;
+  DB: D1Database;
 }

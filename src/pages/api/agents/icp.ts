@@ -37,37 +37,33 @@ interface ICPOutput {
 }
 
 export const POST: APIRoute = async ({ request, locals }) => {
-  const env = locals.runtime.env as Env;
-  const body = await request.json() as {
-    sessionId: string;
-    enrichment: Record<string, unknown>;
-    founderContext: string;
-  };
+  try {
+    const env = (locals as any).runtime?.env as Env;
+    const body = await request.json() as {
+      sessionId: string;
+      enrichment: Record<string, unknown>;
+      founderContext: string;
+    };
 
-  const client = getClaudeClient(env.ANTHROPIC_API_KEY);
+    const client = getClaudeClient(env.ANTHROPIC_API_KEY);
 
-  const icp = await runAgentJSON<ICPOutput>(
-    client,
-    SYSTEM_PROMPT,
-    `Founder context: ${body.founderContext}\n\nEnrichment data: ${JSON.stringify(body.enrichment, null, 2)}`,
-  );
+    const icp = await runAgentJSON<ICPOutput>(
+      client,
+      SYSTEM_PROMPT,
+      `Founder context: ${body.founderContext}\n\nEnrichment data: ${JSON.stringify(body.enrichment, null, 2)}`,
+    );
 
-  const doId = env.FOUNDER_SESSION.idFromName(body.sessionId);
-  const stub = env.FOUNDER_SESSION.get(doId);
-  await stub.fetch(new Request('https://do/update', {
-    method: 'POST',
-    body: JSON.stringify({ icp, stage: 'icp_ready' }),
-  }));
+    await env.DB.prepare(
+      `UPDATE sessions SET icp_json = ?, stage = 'icp_ready', updated_at = unixepoch() WHERE id = ?`
+    ).bind(JSON.stringify(icp), body.sessionId).run();
 
-  await env.DB.prepare(
-    `UPDATE sessions SET icp_json = ?, stage = 'icp_ready', updated_at = unixepoch() WHERE id = ?`
-  ).bind(JSON.stringify(icp), body.sessionId).run();
-
-  return Response.json({ icp });
+    return Response.json({ icp });
+  } catch (err) {
+    return Response.json({ error: String(err) }, { status: 500 });
+  }
 };
 
 interface Env {
   DB: D1Database;
-  FOUNDER_SESSION: DurableObjectNamespace;
   ANTHROPIC_API_KEY: string;
 }
