@@ -2,23 +2,102 @@ import type { APIRoute } from 'astro';
 import { getClaudeClient, runAgentJSON } from '@/lib/claude';
 import { searchPeople } from '@/lib/apollo';
 
-const SYSTEM_PROMPT = `You are a B2B sales execution expert who creates actionable 30-day GTM playbooks for first-time founders.
+export const prerender = false;
 
-Given an ICP and founder context, produce a 30-day playbook with:
-- week1: days 1-7 actions (outreach setup, target list building, first emails)
-- week2: days 8-14 actions (follow-ups, discovery calls)
-- week3: days 15-21 actions (pilot offer, objection handling)
-- week4: days 22-30 actions (close or iterate)
+const SYSTEM_PROMPT = `You are a B2B go-to-market expert helping a founder land their first paying customer.
 
-Each action has: day_range, title, description, channel ("email"|"linkedin"|"phone"|"async"), owner ("founder"|"yfc_team"|"both")
+Given an ICP and founder context, produce a comprehensive GTM playbook as a single JSON object.
 
-Also produce:
-- email_subject: the best cold email subject line for this ICP
-- email_body: a personalized cold email template (use {{first_name}}, {{company}}, {{pain_point}} as variables)
-- linkedin_sequence: array of 3 LinkedIn messages (connection request, follow-up 1, follow-up 2)
-- pilot_offer: a low-risk first offer to remove friction (specific, time-limited)
+Return ONLY valid JSON with this exact structure — no markdown, no extra keys:
 
-Return valid JSON only.`;
+{
+  "gtm_motions": [
+    {
+      "motion": "<motion name>",
+      "description": "<one sentence>",
+      "fit_score": <0-100>,
+      "why_fits": "<specific reason this fits this founder's situation>",
+      "why_not": "<honest reason this might not work or is harder>",
+      "recommended": <true|false>,
+      "priority": <1-14, 1 = best>
+    }
+  ],
+  "first_customer_plan": {
+    "target_segment": "<the single most specific segment to pursue first>",
+    "approach": "<2-3 sentences on the exact approach>",
+    "timeline_days": <30|45|60|90>,
+    "milestones": [
+      { "day": <number>, "milestone": "<what should be true by this day>" }
+    ],
+    "success_criteria": "<what does 'got the first customer' look like concretely>"
+  },
+  "execution_inputs_needed": [
+    {
+      "category": "<Tools | Access | Content | Team | Budget>",
+      "items": [
+        { "name": "<tool or input name>", "why": "<why it's needed>", "priority": "<required | recommended | optional>" }
+      ]
+    }
+  ],
+  "week1": [
+    { "day_range": "Days 1-3", "title": "<action>", "description": "<specific steps>", "channel": "<email|linkedin|phone|async>", "owner": "<founder|yfc_team|both>" }
+  ],
+  "week2": [ <same shape> ],
+  "week3": [ <same shape> ],
+  "week4": [ <same shape> ],
+  "email_subject": "<best cold email subject for this ICP>",
+  "email_body": "<personalized cold email template — use {{first_name}}, {{company}}, {{pain_point}} as variables>",
+  "linkedin_sequence": [
+    "<connection request message>",
+    "<follow-up message 1 — day 3>",
+    "<follow-up message 2 — day 7>"
+  ],
+  "pilot_offer": "<a specific, low-risk first offer to remove friction — time-limited, concrete>"
+}
+
+For gtm_motions, evaluate ALL of these and assign a priority rank to each:
+Outbound cold email, LinkedIn outbound, Warm introductions / referrals, Content marketing, Account-based marketing (ABM), Partnership / channel sales, Product-led growth (PLG), Events / conferences, Community-led growth, Paid acquisition, PR / media outreach, Inbound SEO, Free trial / freemium, Enterprise direct sales.
+
+Be specific to this founder's product, ICP, and situation. Do not give generic advice.`;
+
+interface PlaybookOutput {
+  gtm_motions: Array<{
+    motion: string;
+    description: string;
+    fit_score: number;
+    why_fits: string;
+    why_not: string;
+    recommended: boolean;
+    priority: number;
+  }>;
+  first_customer_plan: {
+    target_segment: string;
+    approach: string;
+    timeline_days: number;
+    milestones: Array<{ day: number; milestone: string }>;
+    success_criteria: string;
+  };
+  execution_inputs_needed: Array<{
+    category: string;
+    items: Array<{ name: string; why: string; priority: string }>;
+  }>;
+  week1: WeekAction[];
+  week2: WeekAction[];
+  week3: WeekAction[];
+  week4: WeekAction[];
+  email_subject: string;
+  email_body: string;
+  linkedin_sequence: string[];
+  pilot_offer: string;
+}
+
+interface WeekAction {
+  day_range: string;
+  title: string;
+  description: string;
+  channel: string;
+  owner: string;
+}
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -30,31 +109,58 @@ export const POST: APIRoute = async ({ request, locals }) => {
     };
 
     const client = getClaudeClient(env.ANTHROPIC_API_KEY);
+    const icp = body.icp as any;
 
-    const [playbook, targets] = await Promise.all([
-      runAgentJSON(
+    const [playbook, targets] = await Promise.allSettled([
+      runAgentJSON<PlaybookOutput>(
         client,
         SYSTEM_PROMPT,
-        `Founder context: ${body.founderContext}\n\nICP: ${JSON.stringify(body.icp, null, 2)}`,
+        `Founder context: ${body.founderContext}\n\nICP: ${JSON.stringify(icp, null, 2)}`,
       ),
       searchPeople(
         {
-          titles: [(body.icp as any)?.persona?.title],
-          industries: (body.icp as any)?.company_profile?.industries,
-          employee_count_min: (body.icp as any)?.company_profile?.employee_range?.min,
-          employee_count_max: (body.icp as any)?.company_profile?.employee_range?.max,
-          countries: (body.icp as any)?.company_profile?.geographies,
+          titles: [icp?.persona?.title].filter(Boolean),
+          industries: icp?.company_profile?.industries,
+          employee_count_min: icp?.company_profile?.employee_range?.min,
+          employee_count_max: icp?.company_profile?.employee_range?.max,
+          countries: icp?.company_profile?.geographies,
           per_page: 25,
         },
         env.APOLLO_API_KEY,
       ),
     ]);
 
+    if (playbook.status === 'rejected') {
+      throw new Error(`Playbook generation failed: ${playbook.reason}`);
+    }
+
+    const playbookData = playbook.value;
+    const targetList = targets.status === 'fulfilled' ? targets.value : [];
+
     await env.DB.prepare(
       `UPDATE sessions SET playbook_json = ?, stage = 'playbook_ready', updated_at = unixepoch() WHERE id = ?`
-    ).bind(JSON.stringify(playbook), body.sessionId).run();
+    ).bind(JSON.stringify(playbookData), body.sessionId).run();
 
-    return Response.json({ playbook, targets });
+    // Save targets to DB
+    if (targetList.length > 0) {
+      const inserts = (targetList as any[]).slice(0, 25).map((t: any) =>
+        env.DB.prepare(
+          `INSERT OR IGNORE INTO targets (id, session_id, company_name, contact_name, contact_title, contact_email, linkedin_url)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`
+        ).bind(
+          crypto.randomUUID(),
+          body.sessionId,
+          t.organization?.name ?? t.employment_history?.[0]?.organization_name ?? null,
+          `${t.first_name ?? ''} ${t.last_name ?? ''}`.trim() || t.name || null,
+          t.title ?? null,
+          t.email ?? null,
+          t.linkedin_url ?? null,
+        )
+      );
+      await env.DB.batch(inserts);
+    }
+
+    return Response.json({ playbook: playbookData, targets: targetList });
   } catch (err) {
     return Response.json({ error: String(err) }, { status: 500 });
   }
