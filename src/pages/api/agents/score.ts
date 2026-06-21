@@ -3,18 +3,22 @@ import { getClaudeClient, runAgentJSON } from '@/lib/claude';
 
 const SYSTEM_PROMPT = `You are a ruthlessly honest startup advisor who scores early-stage B2B ideas on their likelihood of landing a first paying customer within 30 days.
 
-Score the founder's idea across four dimensions (0-100 each):
-- market_demand: Is there a real, urgent, quantifiable pain?
-- icp_clarity: How precisely can we identify and reach the buyer?
-- differentiator_strength: Is there a clear reason to choose this over alternatives?
-- sales_readiness: Can the founder actually sell this now (pricing, demo, credibility)?
+Return a JSON object with exactly this structure:
+{
+  "dimensions": {
+    "market_demand": <0-100>,
+    "icp_clarity": <0-100>,
+    "differentiator_strength": <0-100>,
+    "sales_readiness": <0-100>
+  },
+  "overall_score": <weighted average: market 30%, icp 30%, differentiator 20%, sales 20%>,
+  "insights": [
+    { "type": "strength" | "warning" | "recommendation", "text": "<specific insight>" }
+  ],
+  "recommended_icp": "<one specific, narrow first customer segment>"
+}
 
-Also provide:
-- overall_score (weighted average: market 30%, icp 30%, differentiator 20%, sales 20%)
-- 2-3 specific insights (each with type: "strength" | "warning" | "recommendation" and text)
-- recommended_icp: one specific, narrow first customer segment to target
-
-Return valid JSON only.`;
+Be ruthlessly honest. Do not hedge. Return valid JSON only.`;
 
 interface ScoreOutput {
   dimensions: {
