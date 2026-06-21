@@ -1,5 +1,20 @@
+CREATE TABLE IF NOT EXISTS accounts (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE TABLE IF NOT EXISTS account_sessions (
+  token TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES accounts(id),
+  expires_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
 CREATE TABLE IF NOT EXISTS founders (
   id TEXT PRIMARY KEY,
+  account_id TEXT REFERENCES accounts(id),
   email TEXT NOT NULL UNIQUE,
   linkedin_url TEXT,
   company_url TEXT,
@@ -52,3 +67,4 @@ CREATE TABLE IF NOT EXISTS activities (
 CREATE INDEX IF NOT EXISTS idx_sessions_founder ON sessions(founder_id);
 CREATE INDEX IF NOT EXISTS idx_targets_session ON targets(session_id);
 CREATE INDEX IF NOT EXISTS idx_activities_session ON activities(session_id);
+CREATE INDEX IF NOT EXISTS idx_account_sessions_token ON account_sessions(token);
