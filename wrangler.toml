@@ -1,30 +1,16 @@
 name = "your-first-customer"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
-account_id = "95728620a8d5dfde119e0889cc3864e9"
 pages_build_output_dir = "./dist"
-
-[[durable_objects.bindings]]
-name = "FOUNDER_SESSION"
-class_name = "FounderSession"
-
-[[migrations]]
-tag = "v1"
-new_classes = ["FounderSession"]
 
 [[d1_databases]]
 binding = "DB"
 database_name = "yfc-db"
-database_id = "REPLACE_AFTER_RUNNING_wrangler_d1_create_yfc-db"
+database_id = "f65521c2-de37-401a-89ef-5464b5442a73"
 
 [[kv_namespaces]]
 binding = "CACHE"
-id = "REPLACE_AFTER_RUNNING_wrangler_kv_namespace_create_yfc-cache"
+id = "b20df1bda1f64ff88c721b84b065e23e"
 
 [vars]
 CLAUDE_MODEL = "claude-sonnet-4-6"
-
-# Secrets (set via: wrangler secret put SECRET_NAME)
-# ANTHROPIC_API_KEY
-# APOLLO_API_KEY
-# TOFLOW_API_KEY
