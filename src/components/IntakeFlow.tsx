@@ -83,7 +83,10 @@ export default function IntakeFlow() {
         }),
       });
 
-      if (!scoreRes.ok) throw new Error('Scoring failed');
+      if (!scoreRes.ok) {
+        const errBody = await scoreRes.json().catch(() => ({}));
+        throw new Error(`Scoring failed: ${JSON.stringify(errBody)}`);
+      }
       const scoreData = await scoreRes.json();
       setScore(scoreData);
       setStage('score_ready');
