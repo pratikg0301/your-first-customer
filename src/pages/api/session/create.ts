@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { enrichPersonByLinkedIn, enrichOrganizationByDomain } from '@/lib/apollo';
 
+export const prerender = false;
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
     const env = (locals as any).runtime?.env as Env;

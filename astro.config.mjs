@@ -9,4 +9,7 @@ export default defineConfig({
     platformProxy: { enabled: true },
   }),
   integrations: [react(), tailwind()],
+  security: {
+    checkOrigin: false,
+  },
 });
