@@ -190,6 +190,46 @@ export const prerender = true;
 
     .tag { display: inline-block; font-size: 11px; background: var(--teal-pale); color: var(--teal); padding: 4px 10px; border-radius: 4px; margin: 3px; font-weight: 500; }
 
+    /* Fundraising slides */
+    .raise-hero { text-align: center; padding: 32px; background: white; border-radius: 14px; border: 1px solid var(--cream-dark); margin-bottom: 24px; }
+    .raise-n { font-family: 'Playfair Display', Georgia, serif; font-size: clamp(52px, 7vw, 80px); color: var(--teal); line-height: 1; }
+    .raise-l { font-size: 15px; color: var(--ink-muted); margin-top: 8px; }
+    .raise-sub { font-size: 13px; color: var(--ink-faint); margin-top: 4px; }
+    .three-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .metric { background: white; border: 1px solid var(--cream-dark); border-radius: 10px; padding: 20px; }
+    .metric-n { font-family: 'Playfair Display', Georgia, serif; font-size: clamp(24px, 3vw, 36px); color: var(--teal); line-height: 1.1; }
+    .metric-l { font-size: 12px; color: var(--ink-muted); margin-top: 6px; line-height: 1.5; }
+    .metric-sub { font-size: 10px; color: var(--ink-faint); margin-top: 3px; }
+    .fund-bar { margin: 6px 0 14px; }
+    .fund-bar-track { height: 6px; background: var(--cream-dark); border-radius: 3px; overflow: hidden; }
+    .fund-bar-fill { height: 6px; border-radius: 3px; }
+    .fund-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 11px 0; border-bottom: 1px solid var(--cream-dark); }
+    .fund-row:last-child { border-bottom: none; }
+    .fund-label { font-size: 13px; color: var(--ink); font-weight: 500; }
+    .fund-sub { font-size: 11px; color: var(--ink-muted); margin-top: 2px; }
+    .fund-right { text-align: right; flex-shrink: 0; padding-left: 16px; }
+    .fund-amt { font-size: 14px; font-weight: 500; color: var(--ink); }
+    .fund-pct { font-size: 10px; color: var(--ink-faint); margin-top: 2px; }
+    .fund-total { display: flex; justify-content: space-between; padding: 14px 0 0; margin-top: 4px; border-top: 2px solid var(--ink); }
+    .fund-total-l { font-size: 14px; font-weight: 500; }
+    .fund-total-n { font-size: 16px; font-weight: 500; color: var(--teal); }
+    .rev-months { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin: 20px 0 6px; }
+    .rev-months-2 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 20px; }
+    .mo { padding: 9px 4px; border-radius: 6px; text-align: center; background: white; border: 1px solid var(--cream-dark); }
+    .mo.accent { background: var(--teal-pale); border-color: var(--teal); }
+    .mo-n { font-size: 9px; color: var(--ink-faint); }
+    .mo-r { font-size: 11px; font-weight: 500; color: var(--teal); margin-top: 2px; }
+    .mo-u { font-size: 9px; color: var(--ink-muted); margin-top: 1px; }
+    .return-row { display: flex; justify-content: space-between; align-items: center; padding: 13px 0; border-bottom: 1px solid var(--cream-dark); }
+    .return-row:last-child { border-bottom: none; }
+    .return-l { font-size: 13px; color: var(--ink); }
+    .return-sub { font-size: 11px; color: var(--ink-muted); margin-top: 2px; }
+    .return-v { font-size: clamp(16px, 2vw, 20px); font-weight: 500; color: var(--teal); text-align: right; }
+    .return-x { font-size: 10px; color: var(--ink-faint); text-align: right; margin-top: 2px; }
+    .highlight { background: white; border-left: 3px solid var(--teal); border-radius: 0 8px 8px 0; padding: 14px 18px; margin-top: 16px; }
+    .highlight-t { font-size: 13px; font-weight: 500; color: var(--ink); margin-bottom: 4px; }
+    .highlight-d { font-size: 12px; color: var(--ink-muted); line-height: 1.6; }
+
     /* Logo */
     .logo { position: fixed; top: 24px; left: 40px; font-family: 'Playfair Display', Georgia, serif; font-size: 16px; color: var(--ink); z-index: 100; }
 
@@ -332,8 +372,135 @@ export const prerender = true;
     </div>
   </div>
 
-  <!-- S7: CTA -->
+  <!-- S7: The Ask -->
   <div class="slide" data-slide="7">
+    <div class="eyebrow">The investment ask</div>
+    <h2 class="h2">We're raising <span class="teal">$500K</span><br>to get founders their first customer.</h2>
+    <div class="raise-hero">
+      <div class="raise-n">$500K</div>
+      <div class="raise-l">Pre-seed · SAFE note · 18 months runway</div>
+      <div class="raise-sub">$2.5M pre-money valuation · 16.7% equity offered</div>
+    </div>
+    <div class="three-col">
+      <div class="metric">
+        <div class="metric-n">$2.5M</div>
+        <div class="metric-l">Pre-money valuation</div>
+        <div class="metric-sub">Working MVP · deployed · live</div>
+      </div>
+      <div class="metric">
+        <div class="metric-n">16.7%</div>
+        <div class="metric-l">Equity to early investors</div>
+        <div class="metric-sub">$500K of $3M post-money</div>
+      </div>
+      <div class="metric">
+        <div class="metric-n">24 mo</div>
+        <div class="metric-l">Runway with revenue ramp</div>
+        <div class="metric-sub">18 months at full burn alone</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S8: Use of Funds -->
+  <div class="slide" data-slide="8">
+    <div class="eyebrow">Use of funds · Year 1</div>
+    <h2 class="h2">Every dollar mapped<br>to a milestone.</h2>
+    <div style="background:white; border:1px solid var(--cream-dark); border-radius:12px; padding:20px 24px; margin-bottom:20px">
+      <div class="fund-row">
+        <div><div class="fund-label">Team salaries</div><div class="fund-sub">Founder · Full-stack engineer (mo 3) · Growth hire (mo 5) · Contract AI help</div></div>
+        <div class="fund-right"><div class="fund-amt">$310K</div><div class="fund-pct">62%</div></div>
+      </div>
+      <div class="fund-bar"><div class="fund-bar-track"><div class="fund-bar-fill" style="width:62%;background:var(--teal)"></div></div></div>
+      <div class="fund-row">
+        <div><div class="fund-label">Sales &amp; marketing</div><div class="fund-sub">Content, paid experiments, accelerator partnership deals, events</div></div>
+        <div class="fund-right"><div class="fund-amt">$90K</div><div class="fund-pct">18%</div></div>
+      </div>
+      <div class="fund-bar"><div class="fund-bar-track"><div class="fund-bar-fill" style="width:18%;background:#F59E0B"></div></div></div>
+      <div class="fund-row">
+        <div><div class="fund-label">Infrastructure &amp; APIs</div><div class="fund-sub">AI model calls · enrichment data · Cloudflare stack · dev tools</div></div>
+        <div class="fund-right"><div class="fund-amt">$50K</div><div class="fund-pct">10%</div></div>
+      </div>
+      <div class="fund-bar"><div class="fund-bar-track"><div class="fund-bar-fill" style="width:10%;background:#5DCAA5"></div></div></div>
+      <div class="fund-row" style="border-bottom:none">
+        <div><div class="fund-label">Legal, operations &amp; reserve</div><div class="fund-sub">Incorporation, contracts, accounting, insurance, buffer</div></div>
+        <div class="fund-right"><div class="fund-amt">$50K</div><div class="fund-pct">10%</div></div>
+      </div>
+      <div class="fund-bar" style="margin-bottom:0"><div class="fund-bar-track"><div class="fund-bar-fill" style="width:10%;background:#9CA3AF"></div></div></div>
+      <div class="fund-total"><div class="fund-total-l">Total raise</div><div class="fund-total-n">$500K</div></div>
+    </div>
+    <div class="three-col">
+      <div class="metric"><div class="metric-n">$26K</div><div class="metric-l">Monthly burn (avg)</div><div class="metric-sub">Rises to $35K by month 12</div></div>
+      <div class="metric"><div class="metric-n">$1.00</div><div class="metric-l">Fully-loaded cost per session</div><div class="metric-sub">AI + data + infra share</div></div>
+      <div class="metric"><div class="metric-n">82%</div><div class="metric-l">Gross margin at scale</div><div class="metric-sub">Software-like unit economics</div></div>
+    </div>
+  </div>
+
+  <!-- S9: Revenue Projections -->
+  <div class="slide" data-slide="9">
+    <div class="eyebrow">Revenue projections · Year 1</div>
+    <h2 class="h2">450 paying founders<br>by month 12.</h2>
+    <div class="rev-months">
+      <div class="mo"><div class="mo-n">M1–2</div><div class="mo-r">$0</div><div class="mo-u">Beta</div></div>
+      <div class="mo"><div class="mo-n">M3</div><div class="mo-r">$750</div><div class="mo-u">10 paid</div></div>
+      <div class="mo"><div class="mo-n">M4</div><div class="mo-r">$1.9K</div><div class="mo-u">25 paid</div></div>
+      <div class="mo"><div class="mo-n">M5</div><div class="mo-r">$3.8K</div><div class="mo-u">50 paid</div></div>
+      <div class="mo"><div class="mo-n">M6</div><div class="mo-r">$6K</div><div class="mo-u">80 paid</div></div>
+      <div class="mo"><div class="mo-n">M7</div><div class="mo-r">$9K</div><div class="mo-u">120 paid</div></div>
+    </div>
+    <div class="rev-months-2">
+      <div class="mo"><div class="mo-n">M8</div><div class="mo-r">$12.8K</div><div class="mo-u">170 paid</div></div>
+      <div class="mo"><div class="mo-n">M9</div><div class="mo-r">$17.3K</div><div class="mo-u">230 paid</div></div>
+      <div class="mo"><div class="mo-n">M10</div><div class="mo-r">$22.5K</div><div class="mo-u">300 paid</div></div>
+      <div class="mo"><div class="mo-n">M11</div><div class="mo-r">$28.5K</div><div class="mo-u">380 paid</div></div>
+      <div class="mo accent"><div class="mo-n">M12</div><div class="mo-r">$33.8K</div><div class="mo-u">450 paid</div></div>
+      <div class="mo accent"><div class="mo-n">+Deals</div><div class="mo-r">$24K</div><div class="mo-u">3 accel.</div></div>
+    </div>
+    <div class="three-col">
+      <div class="metric"><div class="metric-n">$160K</div><div class="metric-l">Total Year 1 revenue</div><div class="metric-sub">Subscriptions + accelerator deals</div></div>
+      <div class="metric"><div class="metric-n">$406K</div><div class="metric-l">Year 1 ending ARR</div><div class="metric-sub">450 users × $75 × 12</div></div>
+      <div class="metric"><div class="metric-n">$75</div><div class="metric-l">Blended ARPU / month</div><div class="metric-sub">$49 Starter · $149 Growth · $499 Accel.</div></div>
+    </div>
+  </div>
+
+  <!-- S10: Investor Returns -->
+  <div class="slide" data-slide="10">
+    <div class="eyebrow">Investor returns · 3-year outlook</div>
+    <h2 class="h2">5× to 12× return<br>in three years.</h2>
+    <div style="background:white; border:1px solid var(--cream-dark); border-radius:12px; padding:20px 24px; margin-bottom:20px">
+      <div class="return-row">
+        <div><div class="return-l">Year 1 ending ARR</div><div class="return-sub">450 paid users · $75 ARPU</div></div>
+        <div><div class="return-v">$406K</div></div>
+      </div>
+      <div class="return-row">
+        <div><div class="return-l">Year 2 ARR target</div><div class="return-sub">1,400 users · Series A ready</div></div>
+        <div><div class="return-v">$1.2M</div></div>
+      </div>
+      <div class="return-row">
+        <div><div class="return-l">Year 3 ARR target</div><div class="return-sub">3,500 users · exit-ready</div></div>
+        <div><div class="return-v">$3.2M</div></div>
+      </div>
+      <div style="border-top:1px solid var(--cream-dark); margin-top:4px; padding-top:14px">
+        <div class="return-row" style="border-bottom:none; padding-bottom:4px">
+          <div><div class="return-l" style="font-weight:500">Conservative exit (5× ARR)</div><div class="return-sub">$16M valuation · 16.7% stake</div></div>
+          <div><div class="return-v">$2.67M</div><div class="return-x">5.3× on $500K</div></div>
+        </div>
+        <div class="return-row" style="border-bottom:none; padding-bottom:4px">
+          <div><div class="return-l" style="font-weight:500">Base case exit (8× ARR)</div><div class="return-sub">$25.6M valuation · 16.7% stake</div></div>
+          <div><div class="return-v">$4.27M</div><div class="return-x">8.5× on $500K</div></div>
+        </div>
+        <div class="return-row" style="border-bottom:none">
+          <div><div class="return-l" style="font-weight:500">Optimistic exit (12× ARR · AI premium)</div><div class="return-sub">$38.4M valuation · 16.7% stake</div></div>
+          <div><div class="return-v">$6.41M</div><div class="return-x">12.8× on $500K</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="highlight">
+      <div class="highlight-t">Why early backers have maximum upside</div>
+      <div class="highlight-d">We're priced at $2.5M pre-money — well below comparable AI SaaS pre-seeds in 2025 ($3M–$6M). We're rewarding believers, not transactional investors. The SAFE converts at Series A with a 20% discount, giving early cheques even more protection on the way up.</div>
+    </div>
+  </div>
+
+  <!-- S11: CTA (was S7) -->
+  <div class="slide" data-slide="11">
     <div class="eyebrow">Try it</div>
     <h2 class="h2">Five minutes to your<br>first GTM playbook.</h2>
     <p class="body">Built on Cloudflare's global edge. Powered by Claude. Sessions are saved — run it for every venture you're working on.</p>
@@ -382,6 +549,7 @@ export const prerender = true;
     });
     dotsEl.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('on', i === cur));
     document.getElementById('counter').textContent = (cur + 1) + ' / ' + total;
+  // total is now 12 slides (0–11) — JS derives it from the DOM so no hardcoding needed
     document.getElementById('prev').disabled = cur === 0;
     document.getElementById('next').disabled = cur === total - 1;
     document.getElementById('progress').style.width = ((cur + 1) / total * 100) + '%';
