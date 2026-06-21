@@ -23,6 +23,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
     ).bind(sessionId).all();
 
     return Response.json({
+      name: session.name ?? 'Untitled session',
       stage: session.stage,
       score: session.score,
       icp: session.icp_json ? JSON.parse(session.icp_json as string) : null,

@@ -146,6 +146,8 @@ export default function IntakeFlow() {
   const [score, setScore] = useState<ScoreResult | null>(null);
   const [showTeam, setShowTeam] = useState(false);
 
+  const [sessionName, setSessionName] = useState('');
+
   const [icpHints, setIcpHints] = useState<ICPHints>({
     persona_title: '',
     persona_seniority: '',
@@ -241,6 +243,7 @@ export default function IntakeFlow() {
           company_url: companyUrl || undefined,
           company_linkedin: companyLinkedin || undefined,
           account_id: account!.id,
+          session_name: sessionName || productDescription || 'Untitled session',
         }),
       });
       if (!sessionRes.ok) throw new Error((await sessionRes.json() as any).error ?? 'Session error');
@@ -309,9 +312,9 @@ export default function IntakeFlow() {
     window.location.href = `/dashboard?session=${sessionId}`;
   }
 
-  if (stage === 'enriching') return <Spinner label="Reading your company profile..." sub="Pulling founder, team and company data from Apollo to auto-fill your details." />;
-  if (stage === 'scoring') return <Spinner label="Screening your idea..." sub="Analysing market demand, ICP clarity, differentiators, and team signals. Usually 15 seconds." />;
-  if (stage === 'icp_building') return <Spinner label="Building your GTM playbook..." sub="Creating your ICP, outbound sequences, and 4-week action plan." />;
+  if (stage === 'enriching') return <Spinner label="Gathering your profile..." sub="We're pulling together everything we can find about you and your company. This takes a few seconds." />;
+  if (stage === 'scoring') return <Spinner label="Screening your idea..." sub="Analysing market demand, ICP clarity, team signals, and differentiators. Usually about 15 seconds." />;
+  if (stage === 'icp_building') return <Spinner label="Building your GTM playbook..." sub="Creating your ideal customer profile, outbound sequences, and 4-week action plan. Hang tight." />;
 
   return (
     <div className="min-h-screen bg-cream">
@@ -366,7 +369,7 @@ export default function IntakeFlow() {
 
             <div className="bg-teal-pale border border-teal/20 rounded p-4 mb-8">
               <p className="text-sm text-teal leading-relaxed">
-                <strong className="font-medium">Why this helps:</strong> Providing your company website and LinkedIn lets us pull your product, team, and leadership details automatically — so your screening is sharper and your playbook more specific.
+                <strong className="font-medium">Why this helps:</strong> The more we know about you and your company, the smarter your screening and the sharper your GTM playbook will be. Everything is optional except your LinkedIn.
               </p>
             </div>
 
@@ -374,15 +377,19 @@ export default function IntakeFlow() {
 
             <form onSubmit={handleUrls} className="space-y-4">
               <div>
+                <Label>Session name <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">e.g. "AlignWorks GTM" or "Stealth Fintech"</span></Label>
+                <Input type="text" value={sessionName} onChange={e => setSessionName(e.target.value)} placeholder="Name this venture or session" />
+              </div>
+              <div>
                 <Label>Your LinkedIn URL <span className="text-teal normal-case font-normal tracking-normal ml-1">required</span></Label>
                 <Input type="url" required value={linkedinUrl} onChange={e => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/yourname" />
               </div>
               <div>
-                <Label>Company website <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">optional · enables auto-fill</span></Label>
+                <Label>Company website <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">optional</span></Label>
                 <Input type="url" value={companyUrl} onChange={e => setCompanyUrl(e.target.value)} placeholder="https://yourcompany.com" />
               </div>
               <div>
-                <Label>Company LinkedIn <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">optional · enables team insights</span></Label>
+                <Label>Company LinkedIn <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">optional</span></Label>
                 <Input type="url" value={companyLinkedin} onChange={e => setCompanyLinkedin(e.target.value)} placeholder="https://linkedin.com/company/yourcompany" />
               </div>
 

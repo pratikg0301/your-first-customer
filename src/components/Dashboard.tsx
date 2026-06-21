@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 interface SessionState {
+  name: string;
   stage: string;
   score: number | null;
   icp: any;
@@ -70,10 +71,13 @@ export default function Dashboard() {
       <div className="max-w-2xl mx-auto px-8 py-12">
 
         {/* Header */}
-        <div className="mb-8">
-          <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-2">Your First Customer</p>
-          <h1 className="font-serif text-3xl text-ink leading-tight">GTM Dashboard</h1>
-          <p className="text-xs text-ink-faint mt-1 font-mono">session {sessionId.slice(0, 8)}</p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-2">Your First Customer</p>
+            <h1 className="font-serif text-3xl text-ink leading-tight">{session.name || 'GTM Dashboard'}</h1>
+            <p className="text-xs text-ink-faint mt-1 font-mono">session {sessionId.slice(0, 8)}</p>
+          </div>
+          <a href="/sessions" className="text-sm text-ink-muted hover:text-ink transition-colors mt-1">← All sessions</a>
         </div>
 
         {/* Stat cards */}
