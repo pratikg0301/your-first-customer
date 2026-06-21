@@ -1,23 +1,53 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
-type Stage = 'signup' | 'urls' | 'enriching' | 'confirm' | 'scoring' | 'score_ready' | 'icp';
+type Stage =
+  | 'signup'
+  | 'urls'
+  | 'enriching'
+  | 'confirm'
+  | 'scoring'
+  | 'score_ready'
+  | 'icp_review'
+  | 'icp_building';
 
 interface Account { id: string; email: string; }
+
 interface ScoreResult {
   dimensions: Record<string, number>;
   overall_score: number;
   insights: Array<{ type: string; text: string }>;
   recommended_icp: string;
+  team_analysis?: {
+    credibility_score: number;
+    strengths: string[];
+    gaps: string[];
+    signal: string;
+  };
 }
 
-const STEPS = ['signup', 'urls', 'confirm', 'score_ready'];
+interface ICPHints {
+  persona_title: string;
+  persona_seniority: string;
+  industries: string;
+  employee_min: string;
+  employee_max: string;
+  sales_motion: string;
+  deal_min: string;
+  deal_max: string;
+}
+
+const STAGE_ORDER: Stage[] = ['signup', 'urls', 'confirm', 'score_ready', 'icp_review'];
+const STEP_LABELS = ['Account', 'Links', 'Confirm', 'Screening', 'ICP'];
 
 function StepBar({ stage }: { stage: Stage }) {
-  const idx = STEPS.indexOf(stage);
+  const idx = STAGE_ORDER.indexOf(stage);
   return (
-    <div className="flex gap-1.5 mb-8">
-      {STEPS.map((_, i) => (
-        <div key={i} className={`h-0.5 flex-1 rounded-full transition-all duration-300 ${i <= idx ? 'bg-teal' : 'bg-cream-dark'}`} />
+    <div className="flex items-start gap-1.5 mb-8">
+      {STEP_LABELS.map((label, i) => (
+        <div key={i} className="flex-1 flex flex-col gap-1">
+          <div className={`h-0.5 rounded-full transition-all duration-300 ${i <= idx ? 'bg-teal' : 'bg-cream-dark'}`} />
+          <span className={`text-[10px] uppercase tracking-wide ${i <= idx ? 'text-teal' : 'text-ink-faint'}`}>{label}</span>
+        </div>
       ))}
     </div>
   );
@@ -34,6 +64,15 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   );
 }
 
+function SelectInput({ children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select {...props}
+      className="w-full bg-white border border-cream-dark rounded px-4 py-3 text-sm text-ink focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal transition-colors">
+      {children}
+    </select>
+  );
+}
+
 function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea {...props}
@@ -41,22 +80,28 @@ function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   );
 }
 
-function PrimaryBtn({ children, onClick, type = 'submit', disabled }: { children: React.ReactNode; onClick?: () => void; type?: 'submit' | 'button'; disabled?: boolean }) {
+function PrimaryBtn({ children, onClick, type = 'submit', disabled }: {
+  children: React.ReactNode; onClick?: () => void; type?: 'submit' | 'button'; disabled?: boolean;
+}) {
   return (
     <button type={type} onClick={onClick} disabled={disabled}
-      className="w-full bg-teal text-white text-sm font-medium px-6 py-3.5 rounded hover:bg-teal-light transition-colors disabled:opacity-50">
+      className="w-full bg-teal text-white text-sm font-medium px-6 py-3.5 rounded hover:bg-teal-light transition-colors disabled:opacity-40">
       {children}
     </button>
   );
 }
 
-function GhostBtn({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+function BackBtn({ onClick }: { onClick: () => void }) {
   return (
     <button type="button" onClick={onClick}
-      className="px-5 py-3.5 border border-cream-dark rounded text-sm text-ink-muted hover:bg-cream-dark transition-colors">
-      {children}
+      className="flex items-center gap-1.5 text-sm text-ink-muted hover:text-ink transition-colors mb-6">
+      ← Back
     </button>
   );
+}
+
+function AutoBadge() {
+  return <span className="ml-2 text-[10px] bg-teal-pale text-teal px-2 py-0.5 rounded-sm font-medium uppercase tracking-wide">Auto-filled</span>;
 }
 
 function Spinner({ label, sub }: { label: string; sub?: string }) {
@@ -64,13 +109,13 @@ function Spinner({ label, sub }: { label: string; sub?: string }) {
     <div className="max-w-lg mx-auto px-8 py-32 text-center">
       <div className="w-8 h-8 border-2 border-teal border-t-transparent rounded-full animate-spin mx-auto mb-8" />
       <p className="font-serif text-xl text-ink">{label}</p>
-      {sub && <p className="text-sm text-ink-muted mt-2">{sub}</p>}
+      {sub && <p className="text-sm text-ink-muted mt-2 leading-relaxed">{sub}</p>}
     </div>
   );
 }
 
-function AutoBadge() {
-  return <span className="ml-2 text-xs bg-teal-pale text-teal px-2 py-0.5 rounded-sm font-medium">Auto-filled</span>;
+function ErrorBox({ message }: { message: string }) {
+  return <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded text-sm text-red-700 leading-relaxed">{message}</div>;
 }
 
 export default function IntakeFlow() {
@@ -87,10 +132,30 @@ export default function IntakeFlow() {
   const [productDescription, setProductDescription] = useState('');
   const [problemSolved, setProblemSolved] = useState('');
   const [industryFocus, setIndustryFocus] = useState('');
-  const [enrichment, setEnrichment] = useState<Record<string, unknown> | null>(null);
   const [wasAutoFilled, setWasAutoFilled] = useState(false);
+
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [deckFile, setDeckFile] = useState<File | null>(null);
+  const [deckContext, setDeckContext] = useState('');
+  const [deckParsing, setDeckParsing] = useState(false);
+
+  const [enrichment, setEnrichment] = useState<Record<string, unknown> | null>(null);
+  const [teamData, setTeamData] = useState<any[]>([]);
+
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [score, setScore] = useState<ScoreResult | null>(null);
+  const [showTeam, setShowTeam] = useState(false);
+
+  const [icpHints, setIcpHints] = useState<ICPHints>({
+    persona_title: '',
+    persona_seniority: '',
+    industries: '',
+    employee_min: '',
+    employee_max: '',
+    sales_motion: '',
+    deal_min: '',
+    deal_max: '',
+  });
 
   const dimLabel: Record<string, string> = {
     market_demand: 'Market demand',
@@ -114,6 +179,28 @@ export default function IntakeFlow() {
     setStage('urls');
   }
 
+  async function handleDeckChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setDeckFile(file);
+    setDeckParsing(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+      const base64 = btoa(binary);
+      const res = await fetch('/api/agents/parse-deck', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: base64, mediaType: 'application/pdf' }),
+      });
+      const data = await res.json() as any;
+      if (res.ok) setDeckContext(data.context ?? '');
+    } catch { /* deck is optional */ }
+    setDeckParsing(false);
+  }
+
   async function handleUrls(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -132,6 +219,7 @@ export default function IntakeFlow() {
         setProblemSolved(data.problem_solved ?? '');
         setIndustryFocus(data.industry_focus ?? '');
         setEnrichment(data.enrichment ?? null);
+        setTeamData(data.teamData ?? []);
         setWasAutoFilled(true);
       }
     }
@@ -158,21 +246,23 @@ export default function IntakeFlow() {
       if (!sessionRes.ok) throw new Error((await sessionRes.json() as any).error ?? 'Session error');
       const { sessionId: sid, enrichment: enr } = await sessionRes.json() as any;
       setSessionId(sid);
-      if (enr) setEnrichment(enr);
+      const finalEnrichment = enrichment ?? enr ?? {};
+      if (enr) setEnrichment(finalEnrichment);
+
+      const founderContext = `Product: ${productDescription}. Problem: ${problemSolved}. Industry: ${industryFocus}.`;
 
       const scoreRes = await fetch('/api/agents/score', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: sid,
-          founderContext: `Product: ${productDescription}. Problem: ${problemSolved}. Industry: ${industryFocus}.`,
-          enrichment: enrichment ?? enr ?? {},
+          founderContext,
+          enrichment: finalEnrichment,
+          deckContext: deckContext || undefined,
+          teamData: teamData.length ? teamData : undefined,
         }),
       });
-      if (!scoreRes.ok) {
-        const err = await scoreRes.json() as any;
-        throw new Error(err.error ?? 'Scoring failed');
-      }
+      if (!scoreRes.ok) throw new Error((await scoreRes.json() as any).error ?? 'Scoring failed');
       setScore(await scoreRes.json() as ScoreResult);
       setStage('score_ready');
     } catch (err) {
@@ -181,30 +271,51 @@ export default function IntakeFlow() {
     }
   }
 
-  async function buildPlaybook() {
+  async function handleIcpReview(e: React.FormEvent) {
+    e.preventDefault();
     if (!sessionId) return;
-    setStage('icp');
+    setStage('icp_building');
+
+    const founderContext = `Product: ${productDescription}. Problem: ${problemSolved}. Industry: ${industryFocus}.`;
+
+    const hints: Record<string, unknown> = {};
+    if (icpHints.persona_title) hints.persona_title = icpHints.persona_title;
+    if (icpHints.persona_seniority) hints.persona_seniority = icpHints.persona_seniority;
+    if (icpHints.industries) hints.industries = icpHints.industries;
+    if (icpHints.employee_min) hints.employee_min = Number(icpHints.employee_min);
+    if (icpHints.employee_max) hints.employee_max = Number(icpHints.employee_max);
+    if (icpHints.sales_motion) hints.sales_motion = icpHints.sales_motion;
+    if (icpHints.deal_min) hints.deal_min = Number(icpHints.deal_min);
+    if (icpHints.deal_max) hints.deal_max = Number(icpHints.deal_max);
+
     const icpRes = await fetch('/api/agents/icp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, enrichment: enrichment ?? {}, founderContext: `Product: ${productDescription}. Problem: ${problemSolved}. Industry: ${industryFocus}.` }),
+      body: JSON.stringify({
+        sessionId,
+        enrichment: enrichment ?? {},
+        founderContext,
+        userHints: Object.keys(hints).length ? hints : undefined,
+      }),
     });
     const { icp } = await icpRes.json() as any;
+
     await fetch('/api/agents/playbook', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, icp, founderContext: `Product: ${productDescription}. Problem: ${problemSolved}.` }),
+      body: JSON.stringify({ sessionId, icp, founderContext }),
     });
+
     window.location.href = `/dashboard?session=${sessionId}`;
   }
 
-  if (stage === 'enriching') return <Spinner label="Reading your profile..." sub="Pulling company and founder data to auto-fill your details." />;
-  if (stage === 'scoring') return <Spinner label="Screening your idea..." sub="Our AI is scoring market demand, ICP clarity, and sales readiness." />;
-  if (stage === 'icp') return <Spinner label="Building your GTM playbook..." sub="This takes about 30 seconds." />;
+  if (stage === 'enriching') return <Spinner label="Reading your company profile..." sub="Pulling founder, team and company data from Apollo to auto-fill your details." />;
+  if (stage === 'scoring') return <Spinner label="Screening your idea..." sub="Analysing market demand, ICP clarity, differentiators, and team signals. Usually 15 seconds." />;
+  if (stage === 'icp_building') return <Spinner label="Building your GTM playbook..." sub="Creating your ICP, outbound sequences, and 4-week action plan." />;
 
   return (
     <div className="min-h-screen bg-cream">
-      <div className="max-w-lg mx-auto px-8 py-16">
+      <div className="max-w-lg mx-auto px-8 py-14">
 
         {/* SIGNUP */}
         {stage === 'signup' && (
@@ -212,13 +323,15 @@ export default function IntakeFlow() {
             <StepBar stage={stage} />
             <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-3">Your First Customer</p>
             <h1 className="font-serif text-3xl text-ink leading-tight mb-2">
-              {isLogin ? 'Welcome back.' : 'Let\'s get you your first customer.'}
+              {isLogin ? 'Welcome back.' : "Let's land your first customer."}
             </h1>
             <p className="text-sm text-ink-muted mb-8 leading-relaxed">
-              {isLogin ? 'Sign in to access your dashboard and playbook.' : 'Create a free account. Your progress, playbook, and targets are saved so you can pick up where you left off.'}
+              {isLogin
+                ? 'Sign in to access your dashboard and GTM playbook.'
+                : 'Create a free account. Your playbook and targets are saved so you can pick up where you left off.'}
             </p>
 
-            {error && <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded text-sm text-red-700">{error}</div>}
+            {error && <ErrorBox message={error} />}
 
             <form onSubmit={handleAuth} className="space-y-4">
               <div>
@@ -226,7 +339,7 @@ export default function IntakeFlow() {
                 <Input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" />
               </div>
               <div>
-                <Label>Password {!isLogin && <span className="normal-case text-ink-faint font-normal tracking-normal">— min 8 characters</span>}</Label>
+                <Label>Password {!isLogin && <span className="normal-case text-ink-faint font-normal tracking-normal ml-1">min 8 characters</span>}</Label>
                 <Input type="password" required minLength={8} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
               </div>
               <div className="pt-1">
@@ -247,30 +360,61 @@ export default function IntakeFlow() {
         {stage === 'urls' && (
           <>
             <StepBar stage={stage} />
-            <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-3">Step 1 of 3</p>
+            <BackBtn onClick={() => { setError(null); setStage('signup'); }} />
+            <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-3">Step 1 of 4</p>
             <h1 className="font-serif text-3xl text-ink leading-tight mb-2">Your links</h1>
 
             <div className="bg-teal-pale border border-teal/20 rounded p-4 mb-8">
               <p className="text-sm text-teal leading-relaxed">
-                <strong className="font-medium">Why this speeds things up:</strong> Providing your company website and LinkedIn lets us auto-fill your product description, problem statement, and target industry — so you spend less time typing and more time closing.
+                <strong className="font-medium">Why this helps:</strong> Providing your company website and LinkedIn lets us pull your product, team, and leadership details automatically — so your screening is sharper and your playbook more specific.
               </p>
             </div>
 
-            {error && <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded text-sm text-red-700">{error}</div>}
+            {error && <ErrorBox message={error} />}
 
             <form onSubmit={handleUrls} className="space-y-4">
               <div>
-                <Label>Your LinkedIn URL <span className="text-teal normal-case font-normal tracking-normal">required</span></Label>
+                <Label>Your LinkedIn URL <span className="text-teal normal-case font-normal tracking-normal ml-1">required</span></Label>
                 <Input type="url" required value={linkedinUrl} onChange={e => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/yourname" />
               </div>
               <div>
-                <Label>Company website <span className="text-ink-faint normal-case font-normal tracking-normal">optional · enables auto-fill</span></Label>
+                <Label>Company website <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">optional · enables auto-fill</span></Label>
                 <Input type="url" value={companyUrl} onChange={e => setCompanyUrl(e.target.value)} placeholder="https://yourcompany.com" />
               </div>
               <div>
-                <Label>Company LinkedIn <span className="text-ink-faint normal-case font-normal tracking-normal">optional · enables auto-fill</span></Label>
+                <Label>Company LinkedIn <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">optional · enables team insights</span></Label>
                 <Input type="url" value={companyLinkedin} onChange={e => setCompanyLinkedin(e.target.value)} placeholder="https://linkedin.com/company/yourcompany" />
               </div>
+
+              <div className="border-t border-cream-dark pt-5">
+                <Label>
+                  Business deck or pitch PDF
+                  <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">optional · gives richer screening context</span>
+                </Label>
+                <div
+                  className={`border-2 border-dashed rounded p-6 text-center cursor-pointer transition-colors ${deckFile ? 'border-teal bg-teal-pale' : 'border-cream-dark hover:border-teal/40'}`}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={handleDeckChange} />
+                  {deckParsing ? (
+                    <div className="flex items-center justify-center gap-2 text-sm text-teal">
+                      <div className="w-4 h-4 border-2 border-teal border-t-transparent rounded-full animate-spin" />
+                      Reading deck…
+                    </div>
+                  ) : deckFile ? (
+                    <>
+                      <p className="text-sm font-medium text-teal">{deckFile.name}</p>
+                      <p className="text-xs text-teal/70 mt-1">Deck parsed ✓ — context will be used in screening</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-ink-muted">Click to upload PDF</p>
+                      <p className="text-xs text-ink-faint mt-1">Pitch decks, one-pagers, product overviews</p>
+                    </>
+                  )}
+                </div>
+              </div>
+
               <div className="pt-1">
                 <PrimaryBtn>{(companyUrl || companyLinkedin) ? 'Fetch my details →' : 'Continue →'}</PrimaryBtn>
               </div>
@@ -282,15 +426,18 @@ export default function IntakeFlow() {
         {stage === 'confirm' && (
           <>
             <StepBar stage={stage} />
-            <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-3">Step 2 of 3</p>
+            <BackBtn onClick={() => { setError(null); setStage('urls'); }} />
+            <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-3">Step 2 of 4</p>
             <h1 className="font-serif text-3xl text-ink leading-tight mb-2">
               {wasAutoFilled ? 'We filled in the details.' : 'Tell us about your idea.'}
             </h1>
             <p className="text-sm text-ink-muted mb-8 leading-relaxed">
-              {wasAutoFilled ? 'Review and edit anything that looks off — this shapes your score and playbook.' : 'Be specific. The more concrete you are, the sharper your playbook.'}
+              {wasAutoFilled
+                ? 'Review and edit anything that looks off — this shapes your score and playbook.'
+                : 'Be specific. The more concrete you are, the sharper your playbook.'}
             </p>
 
-            {error && <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded text-sm text-red-700">{error}</div>}
+            {error && <ErrorBox message={error} />}
 
             <form onSubmit={handleConfirm} className="space-y-5">
               <div>
@@ -305,23 +452,28 @@ export default function IntakeFlow() {
                 <Label>Target industry {wasAutoFilled && <AutoBadge />}</Label>
                 <Input type="text" value={industryFocus} onChange={e => setIndustryFocus(e.target.value)} placeholder="e.g. Healthcare, SaaS, Real Estate" />
               </div>
-              <div className="flex gap-3 pt-1">
-                <GhostBtn onClick={() => setStage('urls')}>← Back</GhostBtn>
-                <div className="flex-1">
-                  <PrimaryBtn>Screen my idea →</PrimaryBtn>
+
+              {deckContext && (
+                <div className="bg-teal-pale border border-teal/20 rounded p-4">
+                  <p className="text-xs font-medium text-teal uppercase tracking-wide mb-1">Deck summary included ✓</p>
+                  <p className="text-xs text-teal/80 leading-relaxed line-clamp-3">{deckContext}</p>
                 </div>
+              )}
+
+              <div className="pt-1">
+                <PrimaryBtn>Screen my idea →</PrimaryBtn>
               </div>
             </form>
           </>
         )}
 
-        {/* SCORE */}
+        {/* SCORE READY */}
         {stage === 'score_ready' && score && (
           <>
             <StepBar stage={stage} />
-            <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-3">Step 3 of 3</p>
+            <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-3">Step 3 of 4</p>
             <h1 className="font-serif text-3xl text-ink leading-tight mb-1">
-              Your idea scored <span className="text-teal">{score.overall_score}/100</span>
+              Idea scored <span className="text-teal">{score.overall_score}/100</span>
             </h1>
             <p className="text-sm text-ink-muted mb-8 leading-relaxed">
               Best first target: <span className="text-ink font-medium">{score.recommended_icp}</span>
@@ -336,7 +488,7 @@ export default function IntakeFlow() {
                   </div>
                   <div className="h-1 bg-cream-dark rounded-full">
                     <div
-                      className={`h-1 rounded-full transition-all duration-500 ${val >= 75 ? 'bg-teal' : val >= 55 ? 'bg-amber-400' : 'bg-red-400'}`}
+                      className={`h-1 rounded-full transition-all duration-700 ${val >= 75 ? 'bg-teal' : val >= 55 ? 'bg-amber-400' : 'bg-red-400'}`}
                       style={{ width: `${val}%` }}
                     />
                   </div>
@@ -361,7 +513,198 @@ export default function IntakeFlow() {
               })}
             </div>
 
-            <PrimaryBtn type="button" onClick={buildPlaybook}>Build my GTM playbook →</PrimaryBtn>
+            {/* Team insights — collapsible */}
+            {score.team_analysis && (
+              <div className="mb-8">
+                <button
+                  type="button"
+                  onClick={() => setShowTeam(t => !t)}
+                  className="flex items-center justify-between w-full py-3 border-t border-b border-cream-dark text-sm hover:bg-cream-dark/40 transition-colors px-1 rounded"
+                >
+                  <span>
+                    <span className="font-medium text-ink">Team analysis</span>
+                    <span className="text-ink-muted ml-2">— credibility {score.team_analysis.credibility_score}/100</span>
+                  </span>
+                  <span className="text-xs text-ink-faint">{showTeam ? '▲ Hide' : '▼ Show'}</span>
+                </button>
+
+                {showTeam && (
+                  <div className="pt-4 space-y-4">
+                    <p className="text-sm text-ink italic leading-relaxed">"{score.team_analysis.signal}"</p>
+
+                    {score.team_analysis.strengths.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-ink-faint uppercase tracking-widest mb-2">Strengths</p>
+                        <ul className="space-y-1.5">
+                          {score.team_analysis.strengths.map((s, i) => (
+                            <li key={i} className="text-sm text-ink flex gap-2.5">
+                              <span className="text-teal flex-shrink-0 mt-0.5">✓</span>{s}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {score.team_analysis.gaps.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-ink-faint uppercase tracking-widest mb-2">Gaps to watch</p>
+                        <ul className="space-y-1.5">
+                          {score.team_analysis.gaps.map((g, i) => (
+                            <li key={i} className="text-sm text-ink-muted flex gap-2.5">
+                              <span className="text-amber-500 flex-shrink-0 mt-0.5">⚠</span>{g}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {teamData.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-ink-faint uppercase tracking-widest mb-2">Leadership found</p>
+                        <div className="space-y-2">
+                          {teamData.slice(0, 5).map((p: any, i: number) => {
+                            const name = (p.name ?? `${p.first_name ?? ''} ${p.last_name ?? ''}`).trim();
+                            return (
+                              <div key={i} className="flex items-center gap-3 bg-white border border-cream-dark rounded px-4 py-2.5">
+                                <div className="w-7 h-7 rounded-full bg-cream-dark flex items-center justify-center text-xs font-medium text-ink-muted flex-shrink-0">
+                                  {name[0] ?? '?'}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium text-ink truncate">{name}</p>
+                                  <p className="text-xs text-ink-faint truncate">{p.title}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <PrimaryBtn type="button" onClick={() => setStage('icp_review')}>
+              Refine my ICP &amp; build playbook →
+            </PrimaryBtn>
+          </>
+        )}
+
+        {/* ICP REVIEW */}
+        {stage === 'icp_review' && (
+          <>
+            <StepBar stage={stage} />
+            <BackBtn onClick={() => setStage('score_ready')} />
+            <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-3">Step 4 of 4</p>
+            <h1 className="font-serif text-3xl text-ink leading-tight mb-2">Refine your ICP</h1>
+            <p className="text-sm text-ink-muted mb-8 leading-relaxed">
+              Our AI will auto-build your ideal customer profile and playbook. Override any field below to steer it — or leave everything blank to let the AI decide from your data.
+            </p>
+
+            <form onSubmit={handleIcpReview} className="space-y-5">
+              {/* Persona */}
+              <div className="border border-cream-dark rounded p-5 space-y-4">
+                <p className="text-xs font-medium text-ink-faint uppercase tracking-widest">Buyer persona</p>
+                <div>
+                  <Label>Job title <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">optional — overrides AI</span></Label>
+                  <Input
+                    type="text"
+                    value={icpHints.persona_title}
+                    onChange={e => setIcpHints(h => ({ ...h, persona_title: e.target.value }))}
+                    placeholder="e.g. Head of Revenue Operations"
+                  />
+                </div>
+                <div>
+                  <Label>Seniority <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">optional — overrides AI</span></Label>
+                  <SelectInput
+                    value={icpHints.persona_seniority}
+                    onChange={e => setIcpHints(h => ({ ...h, persona_seniority: e.target.value }))}
+                  >
+                    <option value="">AI decides</option>
+                    <option value="C-Suite">C-Suite (CEO, CTO, CMO…)</option>
+                    <option value="VP">VP level</option>
+                    <option value="Director">Director level</option>
+                    <option value="Manager">Manager level</option>
+                    <option value="IC">Individual contributor</option>
+                  </SelectInput>
+                </div>
+              </div>
+
+              {/* Company */}
+              <div className="border border-cream-dark rounded p-5 space-y-4">
+                <p className="text-xs font-medium text-ink-faint uppercase tracking-widest">Target company</p>
+                <div>
+                  <Label>Industries <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">comma-separated · optional</span></Label>
+                  <Input
+                    type="text"
+                    value={icpHints.industries}
+                    onChange={e => setIcpHints(h => ({ ...h, industries: e.target.value }))}
+                    placeholder="e.g. SaaS, Healthcare, Fintech"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Min employees</Label>
+                    <Input
+                      type="number"
+                      value={icpHints.employee_min}
+                      onChange={e => setIcpHints(h => ({ ...h, employee_min: e.target.value }))}
+                      placeholder="e.g. 50"
+                    />
+                  </div>
+                  <div>
+                    <Label>Max employees</Label>
+                    <Input
+                      type="number"
+                      value={icpHints.employee_max}
+                      onChange={e => setIcpHints(h => ({ ...h, employee_max: e.target.value }))}
+                      placeholder="e.g. 500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Deal */}
+              <div className="border border-cream-dark rounded p-5 space-y-4">
+                <p className="text-xs font-medium text-ink-faint uppercase tracking-widest">Deal parameters</p>
+                <div>
+                  <Label>Sales motion <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">optional — overrides AI</span></Label>
+                  <SelectInput
+                    value={icpHints.sales_motion}
+                    onChange={e => setIcpHints(h => ({ ...h, sales_motion: e.target.value }))}
+                  >
+                    <option value="">AI decides</option>
+                    <option value="self-serve">Self-serve (product-led)</option>
+                    <option value="assisted">Assisted (founder-led)</option>
+                    <option value="enterprise">Enterprise (sales-led)</option>
+                  </SelectInput>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Min deal (USD)</Label>
+                    <Input
+                      type="number"
+                      value={icpHints.deal_min}
+                      onChange={e => setIcpHints(h => ({ ...h, deal_min: e.target.value }))}
+                      placeholder="1000"
+                    />
+                  </div>
+                  <div>
+                    <Label>Max deal (USD)</Label>
+                    <Input
+                      type="number"
+                      value={icpHints.deal_max}
+                      onChange={e => setIcpHints(h => ({ ...h, deal_max: e.target.value }))}
+                      placeholder="10000"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-1">
+                <PrimaryBtn>Build my GTM playbook →</PrimaryBtn>
+              </div>
+            </form>
           </>
         )}
 

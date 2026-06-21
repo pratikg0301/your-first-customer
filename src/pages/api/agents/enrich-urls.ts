@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { enrichPersonByLinkedIn, enrichOrganizationByDomain } from '@/lib/apollo';
+import { enrichPersonByLinkedIn, enrichOrganizationByDomain, searchLeadership } from '@/lib/apollo';
 import { getClaudeClient, runAgentJSON } from '@/lib/claude';
 
 export const prerender = false;
@@ -10,6 +10,7 @@ interface EnrichResult {
   industry_focus: string;
   company_name: string;
   enrichment: Record<string, unknown>;
+  teamData: unknown[];
 }
 
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -21,20 +22,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
       company_linkedin?: string;
     };
 
-    const [personData, orgData] = await Promise.allSettled([
+    const domain = body.company_url ? (() => { try { return new URL(body.company_url!).hostname; } catch { return null; } })() : null;
+
+    const [personData, orgData, leadershipData] = await Promise.allSettled([
       enrichPersonByLinkedIn(body.linkedin_url, env.APOLLO_API_KEY),
-      body.company_url
-        ? enrichOrganizationByDomain(new URL(body.company_url).hostname, env.APOLLO_API_KEY)
-        : Promise.resolve(null),
+      domain ? enrichOrganizationByDomain(domain, env.APOLLO_API_KEY) : Promise.resolve(null),
+      domain ? searchLeadership(domain, env.APOLLO_API_KEY) : Promise.resolve([]),
     ]);
 
     const person = personData.status === 'fulfilled' ? personData.value : null;
     const org = orgData.status === 'fulfilled' ? orgData.value : null;
+    const teamData = leadershipData.status === 'fulfilled' ? leadershipData.value : [];
     const enrichment = { person, organization: org };
 
     const client = getClaudeClient(env.ANTHROPIC_API_KEY);
 
-    const prefilled = await runAgentJSON<EnrichResult>(
+    const prefilled = await runAgentJSON<Omit<EnrichResult, 'enrichment' | 'teamData'>>(
       client,
       `You are a B2B analyst. Given company and founder data, generate concise pre-filled form values.
 
@@ -48,7 +51,7 @@ Return JSON with exactly these fields:
       `Person data: ${JSON.stringify(person, null, 2)}\n\nOrganization data: ${JSON.stringify(org, null, 2)}`,
     );
 
-    return Response.json({ ...prefilled, enrichment });
+    return Response.json({ ...prefilled, enrichment, teamData });
   } catch (err) {
     return Response.json({ error: String(err) }, { status: 500 });
   }

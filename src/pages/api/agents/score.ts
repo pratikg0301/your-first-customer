@@ -1,6 +1,8 @@
 import type { APIRoute } from 'astro';
 import { getClaudeClient, runAgentJSON } from '@/lib/claude';
 
+export const prerender = false;
+
 const SYSTEM_PROMPT = `You are a ruthlessly honest startup advisor who scores early-stage B2B ideas on their likelihood of landing a first paying customer within 30 days.
 
 Return a JSON object with exactly this structure:
@@ -15,7 +17,13 @@ Return a JSON object with exactly this structure:
   "insights": [
     { "type": "strength" | "warning" | "recommendation", "text": "<specific insight>" }
   ],
-  "recommended_icp": "<one specific, narrow first customer segment>"
+  "recommended_icp": "<one specific, narrow first customer segment>",
+  "team_analysis": {
+    "credibility_score": <0-100>,
+    "strengths": ["<strength>"],
+    "gaps": ["<gap>"],
+    "signal": "<one sentence summary of what the team signals to a buyer>"
+  }
 }
 
 Be ruthlessly honest. Do not hedge. Return valid JSON only.`;
@@ -30,6 +38,12 @@ interface ScoreOutput {
   overall_score: number;
   insights: Array<{ type: 'strength' | 'warning' | 'recommendation'; text: string }>;
   recommended_icp: string;
+  team_analysis: {
+    credibility_score: number;
+    strengths: string[];
+    gaps: string[];
+    signal: string;
+  };
 }
 
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -39,15 +53,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
       sessionId: string;
       founderContext: string;
       enrichment: Record<string, unknown>;
+      deckContext?: string;
+      teamData?: unknown[];
     };
 
     const client = getClaudeClient(env.ANTHROPIC_API_KEY);
 
-    const result = await runAgentJSON<ScoreOutput>(
-      client,
-      SYSTEM_PROMPT,
-      `Founder context: ${body.founderContext}\n\nCompany enrichment: ${JSON.stringify(body.enrichment, null, 2)}`,
-    );
+    const userContent = [
+      `Founder context: ${body.founderContext}`,
+      `Company enrichment: ${JSON.stringify(body.enrichment, null, 2)}`,
+      body.teamData?.length ? `Leadership team: ${JSON.stringify(body.teamData, null, 2)}` : null,
+      body.deckContext ? `Business deck summary: ${body.deckContext}` : null,
+    ].filter(Boolean).join('\n\n');
+
+    const result = await runAgentJSON<ScoreOutput>(client, SYSTEM_PROMPT, userContent);
 
     await env.DB.prepare(
       `UPDATE sessions SET score = ?, updated_at = unixepoch() WHERE id = ?`
