@@ -29,6 +29,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [buildingPlaybook, setBuildingPlaybook] = useState(false);
+  const [playbookError, setPlaybookError] = useState<string | null>(null);
 
   useEffect(() => {
     const sid = new URLSearchParams(window.location.search).get('session');
@@ -52,6 +54,45 @@ export default function Dashboard() {
       <a href="/" className="mt-4 inline-block text-teal text-sm hover:underline">Start here →</a>
     </div>
   );
+
+  async function buildPlaybook() {
+    if (!sessionId || !session.icp) return;
+    setBuildingPlaybook(true);
+    setPlaybookError(null);
+    try {
+      const founderContext = session.founder_context ?? 'Founder context not available.';
+
+      const motionsRes = await fetch('/api/agents/gtm-motions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, icp: session.icp, founderContext }),
+      });
+      const motionsData = await motionsRes.json() as any;
+      if (!motionsRes.ok || motionsData.error) throw new Error(motionsData.error ?? 'GTM analysis failed');
+
+      const execRes = await fetch('/api/agents/playbook-execution', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          icp: session.icp,
+          founderContext,
+          gtmMotions: motionsData.gtm_motions,
+          firstCustomerPlan: motionsData.first_customer_plan,
+        }),
+      });
+      const execData = await execRes.json() as any;
+      if (!execRes.ok || execData.error) throw new Error(execData.error ?? 'Execution plan failed');
+
+      // Refresh the session data
+      const updated = await fetch(`/api/session/${sessionId}`).then(r => r.json()) as any;
+      setSession(updated);
+    } catch (err) {
+      setPlaybookError(err instanceof Error ? err.message : 'Playbook generation failed. Please try again.');
+    } finally {
+      setBuildingPlaybook(false);
+    }
+  }
 
   const stageIdx = PIPELINE_STAGES.findIndex(s => s.key === session.stage);
   const icp = session.icp;
@@ -93,6 +134,27 @@ export default function Dashboard() {
           <StatCard value={targets.length} label="Targets found" />
           <StatCard value={`${Math.max(0, stageIdx + 1)}/5`} label="Milestones" />
         </div>
+
+        {/* Playbook build prompt — shown when ICP is ready but playbook hasn't been generated */}
+        {session.stage === 'icp_ready' && !session.playbook && (
+          <div className="mb-6 p-5 bg-teal-pale border border-teal/20 rounded-lg">
+            <p className="text-sm font-medium text-teal mb-1">Your ICP is ready — playbook not yet generated</p>
+            <p className="text-sm text-ink-muted mb-4">Click below to run the GTM motions analysis and 30-day execution plan. Takes about 30–40 seconds.</p>
+            {playbookError && <p className="text-sm text-red-600 mb-3">{playbookError}</p>}
+            <button
+              onClick={buildPlaybook}
+              disabled={buildingPlaybook}
+              className="bg-teal text-white text-sm font-medium px-5 py-2.5 rounded hover:bg-teal-light transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              {buildingPlaybook ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+                  Building playbook…
+                </>
+              ) : 'Generate GTM playbook →'}
+            </button>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex flex-wrap gap-0 border-b border-cream-dark mb-8 -mx-1">

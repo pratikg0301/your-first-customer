@@ -391,16 +391,36 @@ export default function IntakeFlow() {
       return;
     }
 
-    // Step 2: Build GTM playbook using the ICP
-    const playbookRes = await fetch('/api/agents/playbook', {
+    // Step 2a: Evaluate GTM motions + first customer plan (Phase 1, ~12s)
+    const motionsRes = await fetch('/api/agents/gtm-motions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId, icp: icpData.icp, founderContext }),
     });
-    const playbookData = await playbookRes.json() as any;
+    const motionsData = await motionsRes.json() as any;
 
-    if (!playbookRes.ok || playbookData.error) {
-      setError(playbookData.error ?? 'Playbook generation failed — please try again.');
+    if (!motionsRes.ok || motionsData.error) {
+      setError(motionsData.error ?? 'GTM analysis failed — please try again.');
+      setStage('icp_review');
+      return;
+    }
+
+    // Step 2b: Generate execution plan + targets (Phase 2, ~20s)
+    const execRes = await fetch('/api/agents/playbook-execution', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId,
+        icp: icpData.icp,
+        founderContext,
+        gtmMotions: motionsData.gtm_motions,
+        firstCustomerPlan: motionsData.first_customer_plan,
+      }),
+    });
+    const playbookData = await execRes.json() as any;
+
+    if (!execRes.ok || playbookData.error) {
+      setError(playbookData.error ?? 'Execution plan failed — please try again.');
       setStage('icp_review');
       return;
     }
@@ -420,7 +440,7 @@ export default function IntakeFlow() {
 
   if (stage === 'enriching') return <Spinner label="Gathering your profile..." sub="We're pulling together everything we can find about you and your company. This takes a few seconds." />;
   if (stage === 'scoring') return <Spinner label="Screening your idea..." sub="Analysing market demand, ICP clarity, team signals, and differentiators. Usually about 15 seconds." />;
-  if (stage === 'icp_building') return <Spinner label="Building your GTM playbook..." sub="Creating your ideal customer profile, outbound sequences, and 4-week action plan. Hang tight." />;
+  if (stage === 'icp_building') return <Spinner label="Building your GTM playbook..." sub="Evaluating GTM motions, building your outbound sequences, and finding target contacts. This takes about 30–40 seconds — worth the wait." />;
 
   return (
     <div className="min-h-screen bg-cream">
