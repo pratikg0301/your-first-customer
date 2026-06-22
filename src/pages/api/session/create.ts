@@ -18,6 +18,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       company_linkedin?: string;
       account_id?: string;
       session_name?: string;
+      founder_context?: string;
     };
 
     if (!body.email || !body.linkedin_url) {
@@ -45,8 +46,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const sessionName = body.session_name?.trim() || 'Untitled session';
 
     await env.DB.prepare(
-      `INSERT INTO sessions (id, founder_id, stage, name) VALUES (?, ?, 'intake', ?)`
-    ).bind(sessionId, realFounderId, sessionName).run();
+      `INSERT INTO sessions (id, founder_id, stage, name, founder_context) VALUES (?, ?, 'intake', ?, ?)`
+    ).bind(sessionId, realFounderId, sessionName, body.founder_context ?? null).run();
 
     let enrichment = { person: null as any, organization: null as any };
 

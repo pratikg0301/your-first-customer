@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 type Stage =
   | 'signup'
@@ -120,9 +120,11 @@ function ErrorBox({ message }: { message: string }) {
 
 export default function IntakeFlow() {
   const [stage, setStage] = useState<Stage>('signup');
+  const [authChecking, setAuthChecking] = useState(true);
   const [account, setAccount] = useState<Account | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLogin, setIsLogin] = useState(false);
+  const [editMode, setEditMode] = useState(false);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -158,6 +160,63 @@ export default function IntakeFlow() {
     deal_min: '',
     deal_max: '',
   });
+
+  // Check auth on mount — skip signup if already logged in, support ?resume= for editing
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const resumeId = params.get('resume');
+
+    fetch('/api/auth/me')
+      .then(r => r.json())
+      .then(async (me: any) => {
+        if (!me?.account) {
+          // Not logged in — show signup as normal
+          setAuthChecking(false);
+          return;
+        }
+        // Already logged in — populate account state and skip signup
+        setAccount(me.account);
+        setEmail(me.account.email);
+
+        if (resumeId) {
+          // Edit & re-run mode: load the existing session's data
+          try {
+            const data = await fetch(`/api/session/${resumeId}`).then(r => r.json()) as any;
+            setSessionId(resumeId);
+            setEditMode(true);
+            setSessionName(data.name ?? '');
+            if (data.linkedin_url) setLinkedinUrl(data.linkedin_url);
+            if (data.company_url) setCompanyUrl(data.company_url);
+            if (data.company_linkedin) setCompanyLinkedin(data.company_linkedin);
+            if (data.enrichment) setEnrichment(data.enrichment);
+            // Parse founder_context back to individual fields
+            if (data.founder_context) {
+              const ctx = data.founder_context as string;
+              const prod = ctx.match(/Product:\s*(.+?)(?:\.\s*Problem:|$)/)?.[1]?.trim() ?? '';
+              const prob = ctx.match(/Problem:\s*(.+?)(?:\.\s*Industry:|$)/)?.[1]?.trim() ?? '';
+              const ind = ctx.match(/Industry:\s*(.+?)\.?\s*$/)?.[1]?.trim() ?? '';
+              if (prod) setProductDescription(prod);
+              if (prob) setProblemSolved(prob);
+              if (ind) setIndustryFocus(ind);
+            }
+            // Restore score details if session was already scored
+            if (data.score_details) {
+              setScore(data.score_details as ScoreResult);
+              setStage('score_ready');
+            } else {
+              setStage('confirm');
+            }
+          } catch {
+            setStage('urls');
+          }
+        } else {
+          // Normal new-session flow — skip straight to URLs step
+          setStage('urls');
+        }
+        setAuthChecking(false);
+      })
+      .catch(() => setAuthChecking(false));
+  }, []);
 
   const dimLabel: Record<string, string> = {
     market_demand: 'Market demand',
@@ -233,26 +292,46 @@ export default function IntakeFlow() {
     setError(null);
     setStage('scoring');
 
-    try {
-      const sessionRes = await fetch('/api/session/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: account!.email,
-          linkedin_url: linkedinUrl,
-          company_url: companyUrl || undefined,
-          company_linkedin: companyLinkedin || undefined,
-          account_id: account!.id,
-          session_name: sessionName || productDescription || 'Untitled session',
-        }),
-      });
-      if (!sessionRes.ok) throw new Error((await sessionRes.json() as any).error ?? 'Session error');
-      const { sessionId: sid, enrichment: enr } = await sessionRes.json() as any;
-      setSessionId(sid);
-      const finalEnrichment = enrichment ?? enr ?? {};
-      if (enr) setEnrichment(finalEnrichment);
+    const founderContext = `Product: ${productDescription}. Problem: ${problemSolved}. Industry: ${industryFocus}.`;
 
-      const founderContext = `Product: ${productDescription}. Problem: ${problemSolved}. Industry: ${industryFocus}.`;
+    try {
+      let sid = sessionId;
+      let finalEnrichment = enrichment ?? {};
+
+      if (editMode && sid) {
+        // Edit mode — update existing session's name and context, keep the same session ID
+        await fetch(`/api/session/${sid}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_name: sessionName || productDescription,
+            founder_context: founderContext,
+          }),
+        });
+      } else {
+        // New session — create it
+        const sessionRes = await fetch('/api/session/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: account!.email,
+            linkedin_url: linkedinUrl,
+            company_url: companyUrl || undefined,
+            company_linkedin: companyLinkedin || undefined,
+            account_id: account!.id,
+            session_name: sessionName || productDescription || 'Untitled session',
+            founder_context: founderContext,
+          }),
+        });
+        if (!sessionRes.ok) throw new Error((await sessionRes.json() as any).error ?? 'Session error');
+        const { sessionId: newSid, enrichment: enr } = await sessionRes.json() as any;
+        sid = newSid;
+        setSessionId(sid);
+        if (enr) {
+          finalEnrichment = enr;
+          setEnrichment(enr);
+        }
+      }
 
       const scoreRes = await fetch('/api/agents/score', {
         method: 'POST',
@@ -333,6 +412,12 @@ export default function IntakeFlow() {
     }
   }
 
+  if (authChecking) return (
+    <div className="max-w-lg mx-auto px-8 py-32 text-center">
+      <div className="w-6 h-6 border-2 border-teal border-t-transparent rounded-full animate-spin mx-auto" />
+    </div>
+  );
+
   if (stage === 'enriching') return <Spinner label="Gathering your profile..." sub="We're pulling together everything we can find about you and your company. This takes a few seconds." />;
   if (stage === 'scoring') return <Spinner label="Screening your idea..." sub="Analysing market demand, ICP clarity, team signals, and differentiators. Usually about 15 seconds." />;
   if (stage === 'icp_building') return <Spinner label="Building your GTM playbook..." sub="Creating your ideal customer profile, outbound sequences, and 4-week action plan. Hang tight." />;
@@ -384,9 +469,14 @@ export default function IntakeFlow() {
         {stage === 'urls' && (
           <>
             <StepBar stage={stage} />
-            <BackBtn onClick={() => { setError(null); setStage('signup'); }} />
+            {account
+              ? <a href="/sessions" className="flex items-center gap-1.5 text-sm text-ink-muted hover:text-ink transition-colors mb-6">← My sessions</a>
+              : <BackBtn onClick={() => { setError(null); setStage('signup'); }} />
+            }
             <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-3">Step 1 of 4</p>
-            <h1 className="font-serif text-3xl text-ink leading-tight mb-2">Your links</h1>
+            <h1 className="font-serif text-3xl text-ink leading-tight mb-2">
+              {editMode ? 'Update your links' : 'Your links'}
+            </h1>
 
             <div className="bg-teal-pale border border-teal/20 rounded p-4 mb-8">
               <p className="text-sm text-teal leading-relaxed">

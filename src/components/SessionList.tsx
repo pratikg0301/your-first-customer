@@ -55,15 +55,15 @@ export default function SessionList() {
     </div>
   );
 
-  if (!loggedIn) return (
-    <div className="max-w-lg mx-auto px-8 py-24 text-center">
-      <p className="font-serif text-2xl text-ink mb-3">Sign in to see your sessions</p>
-      <p className="text-sm text-ink-muted mb-8">Your GTM sessions and playbooks are tied to your account.</p>
-      <a href="/" className="inline-block bg-teal text-white text-sm font-medium px-6 py-3.5 rounded hover:bg-teal-light transition-colors">
-        Go to sign in →
-      </a>
-    </div>
-  );
+  if (!loggedIn) {
+    // Redirect to the intake flow which will show the sign-in/sign-up screen
+    if (typeof window !== 'undefined') window.location.href = '/';
+    return (
+      <div className="max-w-lg mx-auto px-8 py-32 text-center">
+        <div className="w-6 h-6 border-2 border-teal border-t-transparent rounded-full animate-spin mx-auto" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-cream">

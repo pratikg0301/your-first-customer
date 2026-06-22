@@ -69,8 +69,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const result = await runAgentJSON<ScoreOutput>(client, SYSTEM_PROMPT, userContent);
 
     await env.DB.prepare(
-      `UPDATE sessions SET score = ?, updated_at = unixepoch() WHERE id = ?`
-    ).bind(result.overall_score, body.sessionId).run();
+      `UPDATE sessions SET score = ?, score_json = ?, updated_at = unixepoch() WHERE id = ?`
+    ).bind(result.overall_score, JSON.stringify(result), body.sessionId).run();
 
     return Response.json(result);
   } catch (err) {

@@ -31,6 +31,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       'INSERT INTO account_sessions (token, account_id, expires_at) VALUES (?, ?, ?)'
     ).bind(token, accountId, expiresAt).run();
 
+    // Link any founders with matching email
+    await env.DB.prepare(
+      `UPDATE founders SET account_id = ? WHERE email = ? AND account_id IS NULL`
+    ).bind(accountId, email).run();
+
     return Response.json(
       { accountId, email },
       { headers: { 'Set-Cookie': sessionCookie(token) } }

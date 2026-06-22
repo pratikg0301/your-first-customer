@@ -4,6 +4,10 @@ interface SessionState {
   name: string;
   stage: string;
   score: number | null;
+  score_details: any;
+  founder_context: string | null;
+  linkedin_url: string | null;
+  company_url: string | null;
   icp: any;
   playbook: any;
   targets: any[];
@@ -77,7 +81,10 @@ export default function Dashboard() {
             <h1 className="font-serif text-3xl text-ink leading-tight">{session.name || 'GTM Dashboard'}</h1>
             <p className="text-xs text-ink-faint mt-1 font-mono">session {sessionId.slice(0, 8)}</p>
           </div>
-          <a href="/sessions" className="text-sm text-ink-muted hover:text-ink transition-colors mt-1">← All sessions</a>
+          <div className="flex flex-col items-end gap-2 mt-1">
+            <a href="/sessions" className="text-sm text-ink-muted hover:text-ink transition-colors">← All sessions</a>
+            <a href={`/?resume=${sessionId}`} className="text-xs text-teal hover:underline transition-colors">Edit & re-run →</a>
+          </div>
         </div>
 
         {/* Stat cards */}
@@ -116,6 +123,39 @@ export default function Dashboard() {
                 })}
               </div>
             </Section>
+
+            {session.score_details && (
+              <Section label="Screening score breakdown">
+                <div className="space-y-3 mb-4">
+                  {Object.entries(session.score_details.dimensions ?? {}).map(([key, val]: [string, any]) => {
+                    const labels: Record<string, string> = {
+                      market_demand: 'Market demand', icp_clarity: 'ICP clarity',
+                      differentiator_strength: 'Differentiator strength', sales_readiness: 'Sales readiness',
+                    };
+                    return (
+                      <div key={key}>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="text-ink-muted">{labels[key] ?? key}</span>
+                          <span className="font-medium text-ink">{val}</span>
+                        </div>
+                        <div className="h-1 bg-cream-dark rounded-full">
+                          <div className={`h-1 rounded-full ${val >= 75 ? 'bg-teal' : val >= 55 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${val}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {session.score_details.insights?.map((ins: any, i: number) => {
+                  const styles = ins.type === 'strength' ? 'bg-teal-pale border-teal/20 text-teal' : ins.type === 'warning' ? 'bg-amber-50 border-amber-100 text-amber-800' : 'bg-cream-dark border-cream-dark text-ink-muted';
+                  const icon = ins.type === 'strength' ? '✓' : ins.type === 'warning' ? '⚠' : '→';
+                  return (
+                    <div key={i} className={`flex gap-3 border rounded p-3 text-xs leading-relaxed mb-2 ${styles}`}>
+                      <span className="font-medium flex-shrink-0">{icon}</span><span>{ins.text}</span>
+                    </div>
+                  );
+                })}
+              </Section>
+            )}
 
             {icp && (
               <Section label="Your ICP">
