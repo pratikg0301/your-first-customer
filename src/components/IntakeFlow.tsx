@@ -277,7 +277,9 @@ export default function IntakeFlow() {
   async function handleIcpReview(e: React.FormEvent) {
     e.preventDefault();
     if (!sessionId) return;
+    setError(null);
     setStage('icp_building');
+    try {
 
     const founderContext = `Product: ${productDescription}. Problem: ${problemSolved}. Industry: ${industryFocus}.`;
 
@@ -291,6 +293,7 @@ export default function IntakeFlow() {
     if (icpHints.deal_min) hints.deal_min = Number(icpHints.deal_min);
     if (icpHints.deal_max) hints.deal_max = Number(icpHints.deal_max);
 
+    // Step 1: Build ICP
     const icpRes = await fetch('/api/agents/icp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -301,15 +304,33 @@ export default function IntakeFlow() {
         userHints: Object.keys(hints).length ? hints : undefined,
       }),
     });
-    const { icp } = await icpRes.json() as any;
+    const icpData = await icpRes.json() as any;
 
-    await fetch('/api/agents/playbook', {
+    if (!icpRes.ok || icpData.error || !icpData.icp) {
+      setError(icpData.error ?? 'ICP generation failed — please try again.');
+      setStage('icp_review');
+      return;
+    }
+
+    // Step 2: Build GTM playbook using the ICP
+    const playbookRes = await fetch('/api/agents/playbook', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, icp, founderContext }),
+      body: JSON.stringify({ sessionId, icp: icpData.icp, founderContext }),
     });
+    const playbookData = await playbookRes.json() as any;
+
+    if (!playbookRes.ok || playbookData.error) {
+      setError(playbookData.error ?? 'Playbook generation failed — please try again.');
+      setStage('icp_review');
+      return;
+    }
 
     window.location.href = `/dashboard?session=${sessionId}`;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong building your playbook. Please try again.');
+      setStage('icp_review');
+    }
   }
 
   if (stage === 'enriching') return <Spinner label="Gathering your profile..." sub="We're pulling together everything we can find about you and your company. This takes a few seconds." />;
@@ -608,6 +629,7 @@ export default function IntakeFlow() {
               Our AI will auto-build your ideal customer profile and playbook. Override any field below to steer it — or leave everything blank to let the AI decide from your data.
             </p>
 
+            {error && <ErrorBox message={error} />}
             <form onSubmit={handleIcpReview} className="space-y-5">
               {/* Persona */}
               <div className="border border-cream-dark rounded p-5 space-y-4">

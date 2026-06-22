@@ -111,11 +111,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const client = getClaudeClient(env.ANTHROPIC_API_KEY);
     const icp = body.icp as any;
 
+    if (!icp || typeof icp !== 'object') {
+      return Response.json({ error: 'ICP data is missing — cannot build playbook without a valid ICP.' }, { status: 400 });
+    }
+
     const [playbook, targets] = await Promise.allSettled([
       runAgentJSON<PlaybookOutput>(
         client,
         SYSTEM_PROMPT,
         `Founder context: ${body.founderContext}\n\nICP: ${JSON.stringify(icp, null, 2)}`,
+        'claude-sonnet-4-6',
+        8192,
       ),
       searchPeople(
         {
