@@ -37,18 +37,40 @@ interface ICPHints {
 }
 
 const STAGE_ORDER: Stage[] = ['signup', 'urls', 'confirm', 'score_ready', 'icp_review'];
-const STEP_LABELS = ['Account', 'Links', 'Confirm', 'Screening', 'ICP'];
+const STEP_LABELS = [
+  { label: 'Account', sub: 'Sign up' },
+  { label: 'Company', sub: 'Links' },
+  { label: 'Confirm', sub: 'Enriched' },
+  { label: 'Score', sub: 'Readiness' },
+  { label: 'ICP', sub: 'Ideal customer' },
+  { label: 'Playbook', sub: 'GTM motions' },
+  { label: 'Targets', sub: 'Accounts' },
+];
 
 function StepBar({ stage }: { stage: Stage }) {
   const idx = STAGE_ORDER.indexOf(stage);
   return (
-    <div className="flex items-start gap-1.5 mb-8">
-      {STEP_LABELS.map((label, i) => (
-        <div key={i} className="flex-1 flex flex-col gap-1">
-          <div className={`h-0.5 rounded-full transition-all duration-300 ${i <= idx ? 'bg-teal' : 'bg-cream-dark'}`} />
-          <span className={`text-[10px] uppercase tracking-wide ${i <= idx ? 'text-teal' : 'text-ink-faint'}`}>{label}</span>
-        </div>
-      ))}
+    <div className="mb-8">
+      <div className="flex items-center gap-0">
+        {STEP_LABELS.map((step, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center gap-1.5 relative">
+            <div className="flex items-center w-full">
+              {i > 0 && <div className={`flex-1 h-px transition-all duration-300 ${i <= idx ? 'bg-teal' : 'bg-cream-dark'}`} />}
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0 transition-all duration-300 ${
+                i < idx ? 'bg-teal text-white' :
+                i === idx ? 'bg-teal text-white ring-2 ring-teal/30' :
+                'bg-cream-dark text-ink-faint'
+              }`}>
+                {i < idx ? (
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                ) : i + 1}
+              </div>
+              {i < STEP_LABELS.length - 1 && <div className={`flex-1 h-px transition-all duration-300 ${i < idx ? 'bg-teal' : 'bg-cream-dark'}`} />}
+            </div>
+            <span className={`text-[9px] uppercase tracking-wider font-medium text-center ${i <= idx ? 'text-teal' : 'text-ink-faint'}`}>{step.label}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -508,7 +530,7 @@ export default function IntakeFlow() {
 
             <form onSubmit={handleUrls} className="space-y-4">
               <div>
-                <Label>Session name <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">e.g. "AlignWorks GTM" or "Stealth Fintech"</span></Label>
+                <Label>Session name <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">e.g. "ShortLoop GTM" or "Stealth Fintech"</span></Label>
                 <Input type="text" value={sessionName} onChange={e => setSessionName(e.target.value)} placeholder="Name this venture or session" />
               </div>
               <div>

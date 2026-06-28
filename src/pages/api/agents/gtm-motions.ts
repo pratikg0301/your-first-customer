@@ -3,7 +3,7 @@ import { getClaudeClient, runAgentJSON } from '@/lib/claude';
 
 export const prerender = false;
 
-const SYSTEM_PROMPT = `You are a B2B go-to-market expert. Evaluate all 14 GTM motions for this specific founder and produce a ranked analysis plus a first customer plan.
+const SYSTEM_PROMPT = `You are a B2B go-to-market expert. From the list of GTM motions below, select ONLY the ones that are a genuine fit for this specific founder's product, stage, and ICP. Skip motions that are a poor fit — do not include them at all.
 
 Return ONLY valid JSON — no markdown, no extra keys:
 
@@ -11,12 +11,12 @@ Return ONLY valid JSON — no markdown, no extra keys:
   "gtm_motions": [
     {
       "motion": "<motion name>",
-      "description": "<one sentence>",
+      "description": "<one sentence on what this motion involves>",
       "fit_score": <0-100>,
       "why_fits": "<one sentence, specific to this founder's product and ICP>",
-      "why_not": "<one sentence honest downside>",
+      "why_not": "<one sentence on the main risk or downside>",
       "recommended": <true|false>,
-      "priority": <1-14>
+      "priority": <1-N, 1 = execute first>
     }
   ],
   "first_customer_plan": {
@@ -30,13 +30,17 @@ Return ONLY valid JSON — no markdown, no extra keys:
   }
 }
 
-Evaluate ALL of these motions and assign a unique priority rank 1-14 (1 = best fit):
+Available motions to choose from:
 Outbound cold email, LinkedIn outbound, Warm introductions / referrals, Content marketing,
 Account-based marketing (ABM), Partnership / channel sales, Product-led growth (PLG),
 Events / conferences, Community-led growth, Paid acquisition, PR / media outreach,
 Inbound SEO, Free trial / freemium, Enterprise direct sales.
 
-Be specific to this founder's product and ICP. Keep every field under 30 words.`;
+Rules:
+- Include a motion only if fit_score >= 55
+- Mark the top 1-3 as recommended: true, the rest as recommended: false
+- Keep every text field under 25 words
+- Aim for 3-6 motions total — quality over quantity`;
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -61,7 +65,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       SYSTEM_PROMPT,
       `Founder context: ${body.founderContext}\n\nICP: ${JSON.stringify(body.icp, null, 2)}`,
       'claude-sonnet-4-6',
-      2048,
+      2500,
     );
 
     return Response.json(result);

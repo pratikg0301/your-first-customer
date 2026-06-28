@@ -4,6 +4,24 @@ export function getClaudeClient(apiKey: string) {
   return new Anthropic({ apiKey });
 }
 
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const isOverloaded = err?.status === 529 || err?.message?.includes('overloaded');
+      const isRateLimit = err?.status === 429;
+      if ((isOverloaded || isRateLimit) && attempt < maxAttempts) {
+        const delay = attempt * 8000; // 8s, 16s
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error('Max retry attempts exceeded');
+}
+
 export async function runAgent(
   client: Anthropic,
   systemPrompt: string,
@@ -11,12 +29,12 @@ export async function runAgent(
   model = 'claude-sonnet-4-6',
   maxTokens = 4096,
 ): Promise<string> {
-  const response = await client.messages.create({
+  const response = await withRetry(() => client.messages.create({
     model,
     max_tokens: maxTokens,
     system: systemPrompt,
     messages: [{ role: 'user', content: userMessage }],
-  });
+  }));
 
   const block = response.content[0];
   if (block.type !== 'text') throw new Error('Unexpected response type from Claude');

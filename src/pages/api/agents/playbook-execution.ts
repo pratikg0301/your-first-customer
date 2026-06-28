@@ -76,7 +76,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         SYSTEM_PROMPT,
         `Founder context: ${body.founderContext}${motionContext}\n\nICP: ${JSON.stringify(icp, null, 2)}`,
         'claude-sonnet-4-6',
-        2048,
+        2500,
       ),
       env.APOLLO_API_KEY ? searchPeople(
         {
