@@ -10,11 +10,11 @@ command = "npm install && npm run build"
 [[d1_databases]]
 binding = "DB"
 database_name = "yfc-db"
-database_id = "REPLACE_AFTER_RUNNING_wrangler_d1_create_yfc-db"
+database_id = "f65521c2-de37-401a-89ef-5464b5442a73"
 
 [[kv_namespaces]]
 binding = "CACHE"
-id = "REPLACE_AFTER_RUNNING_wrangler_kv_namespace_create_yfc-cache"
+id = "ae212362c18643309bbff93eff4dadac"
 
 [vars]
 CLAUDE_MODEL = "claude-sonnet-4-6"
