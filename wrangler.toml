@@ -1,16 +1,12 @@
 name = "your-first-customer"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
-account_id = "95728620a8d5dfde119e0889cc3864e9"
 pages_build_output_dir = "./dist"
 
 [[durable_objects.bindings]]
 name = "FOUNDER_SESSION"
 class_name = "FounderSession"
-
-[[migrations]]
-tag = "v1"
-new_classes = ["FounderSession"]
+script_name = "your-first-customer"
 
 [[d1_databases]]
 binding = "DB"
@@ -24,7 +20,7 @@ id = "REPLACE_AFTER_RUNNING_wrangler_kv_namespace_create_yfc-cache"
 [vars]
 CLAUDE_MODEL = "claude-sonnet-4-6"
 
-# Secrets (set via: wrangler secret put SECRET_NAME)
+# Secrets (set via Cloudflare Pages dashboard -> Settings -> Environment Variables)
 # ANTHROPIC_API_KEY
 # APOLLO_API_KEY
 # TOFLOW_API_KEY
