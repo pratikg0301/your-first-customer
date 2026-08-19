@@ -3,7 +3,7 @@ interface Props {
   title: string;
   description?: string;
 }
-const { title, description = 'Land your first paying customer — guaranteed.' } = Astro.props;
+const { title, description = 'Build your sales pipeline — powered by AI.' } = Astro.props;
 ---
 
 <!doctype html>
@@ -12,7 +12,7 @@ const { title, description = 'Land your first paying customer — guaranteed.' }
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
-    <title>{title} | Your First Customer</title>
+    <title>{title} | Build Your Pipeline</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -21,8 +21,7 @@ const { title, description = 'Land your first paying customer — guaranteed.' }
     <nav class="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
       <a href="/" class="flex items-center gap-2 font-medium text-gray-900">
         <span class="w-2 h-2 rounded-full bg-brand-teal inline-block"></span>
-        Your First Customer
-        <span class="text-xs text-gray-400 font-normal ml-1">by AlignWorks</span>
+        Build Your Pipeline
       </a>
       <a
         href="/dashboard"
