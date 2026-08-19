@@ -49,12 +49,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
     ),
   ]);
 
-  const doId = env.FOUNDER_SESSION.idFromName(body.sessionId);
-  const stub = env.FOUNDER_SESSION.get(doId);
-  await stub.fetch(new Request('https://do/update', {
-    method: 'POST',
-    body: JSON.stringify({ playbook, targets, stage: 'playbook_ready' }),
-  }));
+  const raw = await env.CACHE.get(`session:${body.sessionId}`);
+  const state = raw ? JSON.parse(raw) : {};
+  await env.CACHE.put(`session:${body.sessionId}`, JSON.stringify({ ...state, playbook, targets, stage: 'playbook_ready' }), {
+    expirationTtl: 60 * 60 * 24 * 7,
+  });
 
   await env.DB.prepare(
     `UPDATE sessions SET playbook_json = ?, stage = 'playbook_ready', updated_at = unixepoch() WHERE id = ?`
@@ -65,7 +64,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
 interface Env {
   DB: D1Database;
-  FOUNDER_SESSION: DurableObjectNamespace;
+  CACHE: KVNamespace;
   ANTHROPIC_API_KEY: string;
   APOLLO_API_KEY: string;
 }

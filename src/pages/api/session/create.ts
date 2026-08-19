@@ -30,17 +30,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
     `INSERT INTO sessions (id, founder_id, stage) VALUES (?, ?, 'intake')`
   ).bind(sessionId, founderId).run();
 
-  const doId = env.FOUNDER_SESSION.idFromName(sessionId);
-  const stub = env.FOUNDER_SESSION.get(doId);
-
-  await stub.fetch(new Request('https://do/init', {
-    method: 'POST',
-    body: JSON.stringify({
-      founderId,
-      intake: body,
-    }),
-  }));
-
   const [personData, orgData] = await Promise.allSettled([
     enrichPersonByLinkedIn(body.linkedin_url, env.APOLLO_API_KEY),
     body.company_url
@@ -53,10 +42,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
     organization: orgData.status === 'fulfilled' ? orgData.value : null,
   };
 
-  await stub.fetch(new Request('https://do/update', {
-    method: 'POST',
-    body: JSON.stringify({ enrichment, stage: 'enriched' }),
-  }));
+  const sessionState = {
+    founderId,
+    intake: body,
+    enrichment,
+    stage: 'enriched',
+  };
+
+  await env.CACHE.put(`session:${sessionId}`, JSON.stringify(sessionState), {
+    expirationTtl: 60 * 60 * 24 * 7, // 7 days
+  });
 
   await env.DB.prepare(
     `INSERT INTO enrichments (id, founder_id, source, data_json) VALUES (?, ?, 'apollo', ?)`
@@ -67,7 +62,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
 interface Env {
   DB: D1Database;
-  FOUNDER_SESSION: DurableObjectNamespace;
   CACHE: KVNamespace;
   APOLLO_API_KEY: string;
   ANTHROPIC_API_KEY: string;

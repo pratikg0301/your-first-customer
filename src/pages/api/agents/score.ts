@@ -44,12 +44,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
     `Founder context: ${body.founderContext}\n\nCompany enrichment: ${JSON.stringify(body.enrichment, null, 2)}`,
   );
 
-  const doId = env.FOUNDER_SESSION.idFromName(body.sessionId);
-  const stub = env.FOUNDER_SESSION.get(doId);
-  await stub.fetch(new Request('https://do/update', {
-    method: 'POST',
-    body: JSON.stringify({ score: result.overall_score }),
-  }));
+  const raw = await env.CACHE.get(`session:${body.sessionId}`);
+  const state = raw ? JSON.parse(raw) : {};
+  await env.CACHE.put(`session:${body.sessionId}`, JSON.stringify({ ...state, score: result.overall_score, stage: 'scored' }), {
+    expirationTtl: 60 * 60 * 24 * 7,
+  });
 
   await env.DB.prepare(
     `UPDATE sessions SET score = ?, updated_at = unixepoch() WHERE id = ?`
@@ -60,6 +59,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
 interface Env {
   DB: D1Database;
-  FOUNDER_SESSION: DurableObjectNamespace;
+  CACHE: KVNamespace;
   ANTHROPIC_API_KEY: string;
 }

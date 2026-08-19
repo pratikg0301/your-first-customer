@@ -4,15 +4,17 @@ export const GET: APIRoute = async ({ params, locals }) => {
   const env = locals.runtime.env as Env;
   const sessionId = params.id!;
 
-  const doId = env.FOUNDER_SESSION.idFromName(sessionId);
-  const stub = env.FOUNDER_SESSION.get(doId);
-  const res = await stub.fetch(new Request('https://do/state'));
+  const raw = await env.CACHE.get(`session:${sessionId}`);
+  if (!raw) {
+    return new Response(JSON.stringify({ error: 'Session not found' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 
-  return new Response(res.body, {
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return new Response(raw, { headers: { 'Content-Type': 'application/json' } });
 };
 
 interface Env {
-  FOUNDER_SESSION: DurableObjectNamespace;
+  CACHE: KVNamespace;
 }
