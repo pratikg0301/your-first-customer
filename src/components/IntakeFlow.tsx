@@ -1,329 +1,875 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
-type Stage = 'intake' | 'enriching' | 'scoring' | 'score_ready' | 'icp' | 'playbook';
+type Stage =
+  | 'signup'
+  | 'urls'
+  | 'enriching'
+  | 'confirm'
+  | 'scoring'
+  | 'score_ready'
+  | 'icp_review'
+  | 'icp_building';
 
-interface IntakeData {
-  email: string;
-  linkedin_url: string;
-  company_url: string;
-  company_linkedin: string;
-  product_description: string;
-  problem_solved: string;
-  ticket_size: string;
-  industry_focus: string;
-}
+interface Account { id: string; email: string; }
 
 interface ScoreResult {
   dimensions: Record<string, number>;
   overall_score: number;
   insights: Array<{ type: string; text: string }>;
   recommended_icp: string;
+  team_analysis?: {
+    credibility_score: number;
+    strengths: string[];
+    gaps: string[];
+    signal: string;
+  };
 }
 
-const STAGE_LABELS: Record<Stage, string> = {
-  intake: 'Tell us about you',
-  enriching: 'Enriching your profile...',
-  scoring: 'Scoring your idea...',
-  score_ready: 'Your readiness score',
-  icp: 'Building your ICP...',
-  playbook: 'Your GTM playbook',
-};
+interface ICPHints {
+  persona_title: string;
+  persona_seniority: string;
+  industries: string;
+  employee_min: string;
+  employee_max: string;
+  sales_motion: string;
+  deal_min: string;
+  deal_max: string;
+}
+
+const STAGE_ORDER: Stage[] = ['signup', 'urls', 'confirm', 'score_ready', 'icp_review'];
+const STEP_LABELS = [
+  { label: 'Account', sub: 'Sign up' },
+  { label: 'Company', sub: 'Links' },
+  { label: 'Confirm', sub: 'Enriched' },
+  { label: 'Score', sub: 'Readiness' },
+  { label: 'ICP', sub: 'Ideal customer' },
+  { label: 'Playbook', sub: 'GTM motions' },
+  { label: 'Targets', sub: 'Accounts' },
+];
+
+function StepBar({ stage }: { stage: Stage }) {
+  const idx = STAGE_ORDER.indexOf(stage);
+  return (
+    <div className="mb-8">
+      <div className="flex items-center gap-0">
+        {STEP_LABELS.map((step, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center gap-1.5 relative">
+            <div className="flex items-center w-full">
+              {i > 0 && <div className={`flex-1 h-px transition-all duration-300 ${i <= idx ? 'bg-teal' : 'bg-cream-dark'}`} />}
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0 transition-all duration-300 ${
+                i < idx ? 'bg-teal text-white' :
+                i === idx ? 'bg-teal text-white ring-2 ring-teal/30' :
+                'bg-cream-dark text-ink-faint'
+              }`}>
+                {i < idx ? (
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                ) : i + 1}
+              </div>
+              {i < STEP_LABELS.length - 1 && <div className={`flex-1 h-px transition-all duration-300 ${i < idx ? 'bg-teal' : 'bg-cream-dark'}`} />}
+            </div>
+            <span className={`text-[9px] uppercase tracking-wider font-medium text-center ${i <= idx ? 'text-teal' : 'text-ink-faint'}`}>{step.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Label({ children }: { children: React.ReactNode }) {
+  return <label className="block text-xs font-medium text-ink-muted uppercase tracking-wide mb-2">{children}</label>;
+}
+
+function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input {...props}
+      className="w-full bg-white border border-cream-dark rounded px-4 py-3 text-sm text-ink placeholder-ink-faint focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal transition-colors" />
+  );
+}
+
+function SelectInput({ children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select {...props}
+      className="w-full bg-white border border-cream-dark rounded px-4 py-3 text-sm text-ink focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal transition-colors">
+      {children}
+    </select>
+  );
+}
+
+function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea {...props}
+      className="w-full bg-white border border-cream-dark rounded px-4 py-3 text-sm text-ink placeholder-ink-faint focus:outline-none focus:border-teal focus:ring-1 focus:ring-teal transition-colors resize-none" />
+  );
+}
+
+function PrimaryBtn({ children, onClick, type = 'submit', disabled }: {
+  children: React.ReactNode; onClick?: () => void; type?: 'submit' | 'button'; disabled?: boolean;
+}) {
+  return (
+    <button type={type} onClick={onClick} disabled={disabled}
+      className="w-full bg-teal text-white text-sm font-medium px-6 py-3.5 rounded hover:bg-teal-light transition-colors disabled:opacity-40">
+      {children}
+    </button>
+  );
+}
+
+function BackBtn({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick}
+      className="flex items-center gap-1.5 text-sm text-ink-muted hover:text-ink transition-colors mb-6">
+      ← Back
+    </button>
+  );
+}
+
+function AutoBadge() {
+  return <span className="ml-2 text-[10px] bg-teal-pale text-teal px-2 py-0.5 rounded-sm font-medium uppercase tracking-wide">Auto-filled</span>;
+}
+
+function Spinner({ label, sub }: { label: string; sub?: string }) {
+  return (
+    <div className="max-w-lg mx-auto px-8 py-32 text-center">
+      <div className="w-8 h-8 border-2 border-teal border-t-transparent rounded-full animate-spin mx-auto mb-8" />
+      <p className="font-serif text-xl text-ink">{label}</p>
+      {sub && <p className="text-sm text-ink-muted mt-2 leading-relaxed">{sub}</p>}
+    </div>
+  );
+}
+
+function ErrorBox({ message }: { message: string }) {
+  return <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded text-sm text-red-700 leading-relaxed">{message}</div>;
+}
 
 export default function IntakeFlow() {
-  const [stage, setStage] = useState<Stage>('intake');
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [enrichment, setEnrichment] = useState<Record<string, unknown> | null>(null);
-  const [score, setScore] = useState<ScoreResult | null>(null);
+  const [stage, setStage] = useState<Stage>('signup');
+  const [authChecking, setAuthChecking] = useState(true);
+  const [account, setAccount] = useState<Account | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isLogin, setIsLogin] = useState(false);
+  const [editMode, setEditMode] = useState(false);
 
-  const [form, setForm] = useState<IntakeData>({
-    email: '',
-    linkedin_url: '',
-    company_url: '',
-    company_linkedin: '',
-    product_description: '',
-    problem_solved: '',
-    ticket_size: '',
-    industry_focus: '',
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [linkedinUrl, setLinkedinUrl] = useState('');
+  const [companyUrl, setCompanyUrl] = useState('');
+  const [companyLinkedin, setCompanyLinkedin] = useState('');
+  const [productDescription, setProductDescription] = useState('');
+  const [problemSolved, setProblemSolved] = useState('');
+  const [industryFocus, setIndustryFocus] = useState('');
+  const [wasAutoFilled, setWasAutoFilled] = useState(false);
+
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [deckFile, setDeckFile] = useState<File | null>(null);
+  const [deckContext, setDeckContext] = useState('');
+  const [deckParsing, setDeckParsing] = useState(false);
+
+  const [enrichment, setEnrichment] = useState<Record<string, unknown> | null>(null);
+  const [teamData, setTeamData] = useState<any[]>([]);
+
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [score, setScore] = useState<ScoreResult | null>(null);
+  const [showTeam, setShowTeam] = useState(false);
+
+  const [sessionName, setSessionName] = useState('');
+
+  const [icpHints, setIcpHints] = useState<ICPHints>({
+    persona_title: '',
+    persona_seniority: '',
+    industries: '',
+    employee_min: '',
+    employee_max: '',
+    sales_motion: '',
+    deal_min: '',
+    deal_max: '',
   });
 
-  const set = (k: keyof IntakeData) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-    setForm(f => ({ ...f, [k]: e.target.value }));
+  // Check auth on mount — skip signup if already logged in, support ?resume= for editing
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const resumeId = params.get('resume');
 
-  async function handleSubmit(e: React.FormEvent) {
+    fetch('/api/auth/me')
+      .then(r => r.json())
+      .then(async (me: any) => {
+        if (!me?.account) {
+          // Not logged in — show signup as normal
+          setAuthChecking(false);
+          return;
+        }
+        // Already logged in — populate account state and skip signup
+        setAccount(me.account);
+        setEmail(me.account.email);
+
+        if (resumeId) {
+          // Edit & re-run mode: load the existing session's data
+          try {
+            const data = await fetch(`/api/session/${resumeId}`).then(r => r.json()) as any;
+            setSessionId(resumeId);
+            setEditMode(true);
+            setSessionName(data.name ?? '');
+            if (data.linkedin_url) setLinkedinUrl(data.linkedin_url);
+            if (data.company_url) setCompanyUrl(data.company_url);
+            if (data.company_linkedin) setCompanyLinkedin(data.company_linkedin);
+            if (data.enrichment) setEnrichment(data.enrichment);
+            // Parse founder_context back to individual fields
+            if (data.founder_context) {
+              const ctx = data.founder_context as string;
+              const prod = ctx.match(/Product:\s*(.+?)(?:\.\s*Problem:|$)/)?.[1]?.trim() ?? '';
+              const prob = ctx.match(/Problem:\s*(.+?)(?:\.\s*Industry:|$)/)?.[1]?.trim() ?? '';
+              const ind = ctx.match(/Industry:\s*(.+?)\.?\s*$/)?.[1]?.trim() ?? '';
+              if (prod) setProductDescription(prod);
+              if (prob) setProblemSolved(prob);
+              if (ind) setIndustryFocus(ind);
+            }
+            // Restore score details if session was already scored
+            if (data.score_details) {
+              setScore(data.score_details as ScoreResult);
+              setStage('score_ready');
+            } else {
+              setStage('confirm');
+            }
+          } catch {
+            setStage('urls');
+          }
+        } else {
+          // Normal new-session flow — skip straight to URLs step
+          setStage('urls');
+        }
+        setAuthChecking(false);
+      })
+      .catch(() => setAuthChecking(false));
+  }, []);
+
+  const dimLabel: Record<string, string> = {
+    market_demand: 'Market demand',
+    icp_clarity: 'ICP clarity',
+    differentiator_strength: 'Differentiator strength',
+    sales_readiness: 'Sales readiness',
+  };
+
+  async function handleAuth(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setStage('enriching');
+    const res = await fetch(isLogin ? '/api/auth/login' : '/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json() as any;
+    if (!res.ok) { setError(data.error); return; }
+    setAccount({ id: data.accountId, email: data.email });
+    setEmail(data.email);
+    setStage('urls');
+  }
 
+  async function handleDeckChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setDeckFile(file);
+    setDeckParsing(true);
     try {
-      const res = await fetch('/api/session/create', {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+      const base64 = btoa(binary);
+      const res = await fetch('/api/agents/parse-deck', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: form.email,
-          linkedin_url: form.linkedin_url,
-          company_url: form.company_url || undefined,
-          company_linkedin: form.company_linkedin || undefined,
-        }),
+        body: JSON.stringify({ data: base64, mediaType: 'application/pdf' }),
       });
+      const data = await res.json() as any;
+      if (res.ok) setDeckContext(data.context ?? '');
+    } catch { /* deck is optional */ }
+    setDeckParsing(false);
+  }
 
-      if (!res.ok) throw new Error('Failed to create session');
-      const { sessionId: sid, enrichment: enr } = await res.json();
-      setSessionId(sid);
-      setEnrichment(enr);
-      setStage('scoring');
+  async function handleUrls(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!linkedinUrl) { setError('Your LinkedIn URL is required'); return; }
+
+    if (companyUrl || companyLinkedin) {
+      setStage('enriching');
+      const res = await fetch('/api/agents/enrich-urls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linkedin_url: linkedinUrl, company_url: companyUrl || undefined, company_linkedin: companyLinkedin || undefined }),
+      });
+      const data = await res.json() as any;
+      if (res.ok && !data.error) {
+        setProductDescription(data.product_description ?? '');
+        setProblemSolved(data.problem_solved ?? '');
+        setIndustryFocus(data.industry_focus ?? '');
+        setEnrichment(data.enrichment ?? null);
+        setTeamData(data.teamData ?? []);
+        setWasAutoFilled(true);
+      }
+    }
+    setStage('confirm');
+  }
+
+  async function handleConfirm(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setStage('scoring');
+
+    const founderContext = `Product: ${productDescription}. Problem: ${problemSolved}. Industry: ${industryFocus}.`;
+
+    try {
+      let sid = sessionId;
+      let finalEnrichment = enrichment ?? {};
+
+      if (editMode && sid) {
+        // Edit mode — update existing session's name and context, keep the same session ID
+        await fetch(`/api/session/${sid}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_name: sessionName || productDescription,
+            founder_context: founderContext,
+          }),
+        });
+      } else {
+        // New session — create it
+        const sessionRes = await fetch('/api/session/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: account!.email,
+            linkedin_url: linkedinUrl,
+            company_url: companyUrl || undefined,
+            company_linkedin: companyLinkedin || undefined,
+            account_id: account!.id,
+            session_name: sessionName || productDescription || 'Untitled session',
+            founder_context: founderContext,
+          }),
+        });
+        if (!sessionRes.ok) throw new Error((await sessionRes.json() as any).error ?? 'Session error');
+        const { sessionId: newSid, enrichment: enr } = await sessionRes.json() as any;
+        sid = newSid;
+        setSessionId(sid);
+        if (enr) {
+          finalEnrichment = enr;
+          setEnrichment(enr);
+        }
+      }
 
       const scoreRes = await fetch('/api/agents/score', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: sid,
-          founderContext: `Product: ${form.product_description}. Problem solved: ${form.problem_solved}. Target ticket size: ${form.ticket_size}. Industry focus: ${form.industry_focus}.`,
-          enrichment: enr,
+          founderContext,
+          enrichment: finalEnrichment,
+          deckContext: deckContext || undefined,
+          teamData: teamData.length ? teamData : undefined,
         }),
       });
-
-      if (!scoreRes.ok) throw new Error('Scoring failed');
-      const scoreData = await scoreRes.json();
-      setScore(scoreData);
+      if (!scoreRes.ok) throw new Error((await scoreRes.json() as any).error ?? 'Scoring failed');
+      setScore(await scoreRes.json() as ScoreResult);
       setStage('score_ready');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
-      setStage('intake');
+      setStage('confirm');
     }
   }
 
-  async function buildPlaybook() {
-    if (!sessionId || !enrichment) return;
-    setStage('icp');
+  async function handleIcpReview(e: React.FormEvent) {
+    e.preventDefault();
+    if (!sessionId) return;
+    setError(null);
+    setStage('icp_building');
+    try {
 
+    const founderContext = `Product: ${productDescription}. Problem: ${problemSolved}. Industry: ${industryFocus}.`;
+
+    const hints: Record<string, unknown> = {};
+    if (icpHints.persona_title) hints.persona_title = icpHints.persona_title;
+    if (icpHints.persona_seniority) hints.persona_seniority = icpHints.persona_seniority;
+    if (icpHints.industries) hints.industries = icpHints.industries;
+    if (icpHints.employee_min) hints.employee_min = Number(icpHints.employee_min);
+    if (icpHints.employee_max) hints.employee_max = Number(icpHints.employee_max);
+    if (icpHints.sales_motion) hints.sales_motion = icpHints.sales_motion;
+    if (icpHints.deal_min) hints.deal_min = Number(icpHints.deal_min);
+    if (icpHints.deal_max) hints.deal_max = Number(icpHints.deal_max);
+
+    // Step 1: Build ICP
     const icpRes = await fetch('/api/agents/icp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sessionId,
-        enrichment,
-        founderContext: `Product: ${form.product_description}. Problem: ${form.problem_solved}. Ticket size: ${form.ticket_size}. Industry: ${form.industry_focus}.`,
+        enrichment: enrichment ?? {},
+        founderContext,
+        userHints: Object.keys(hints).length ? hints : undefined,
       }),
     });
+    const icpData = await icpRes.json() as any;
 
-    const { icp } = await icpRes.json();
+    if (!icpRes.ok || icpData.error || !icpData.icp) {
+      setError(icpData.error ?? 'ICP generation failed — please try again.');
+      setStage('icp_review');
+      return;
+    }
 
-    await fetch('/api/agents/playbook', {
+    // Step 2a: Evaluate GTM motions + first customer plan (Phase 1, ~12s)
+    const motionsRes = await fetch('/api/agents/gtm-motions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, icp: icpData.icp, founderContext }),
+    });
+    const motionsData = await motionsRes.json() as any;
+
+    if (!motionsRes.ok || motionsData.error) {
+      setError(motionsData.error ?? 'GTM analysis failed — please try again.');
+      setStage('icp_review');
+      return;
+    }
+
+    // Step 2b: Generate execution plan + targets (Phase 2, ~20s)
+    const execRes = await fetch('/api/agents/playbook-execution', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sessionId,
-        icp,
-        founderContext: `Product: ${form.product_description}. Problem: ${form.problem_solved}.`,
+        icp: icpData.icp,
+        founderContext,
+        gtmMotions: motionsData.gtm_motions,
+        firstCustomerPlan: motionsData.first_customer_plan,
       }),
     });
+    const playbookData = await execRes.json() as any;
+
+    if (!execRes.ok || playbookData.error) {
+      setError(playbookData.error ?? 'Execution plan failed — please try again.');
+      setStage('icp_review');
+      return;
+    }
 
     window.location.href = `/dashboard?session=${sessionId}`;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong building your playbook. Please try again.');
+      setStage('icp_review');
+    }
   }
 
-  const insightIcon = (type: string) => {
-    if (type === 'strength') return '✓';
-    if (type === 'warning') return '⚠';
-    return '→';
-  };
+  if (authChecking) return (
+    <div className="max-w-lg mx-auto px-8 py-32 text-center">
+      <div className="w-6 h-6 border-2 border-teal border-t-transparent rounded-full animate-spin mx-auto" />
+    </div>
+  );
 
-  const insightColor = (type: string) => {
-    if (type === 'strength') return 'text-emerald-700 bg-emerald-50';
-    if (type === 'warning') return 'text-amber-700 bg-amber-50';
-    return 'text-indigo-700 bg-indigo-50';
-  };
-
-  const dimLabel: Record<string, string> = {
-    market_demand: 'Market demand',
-    icp_clarity: 'ICP clarity',
-    differentiator_strength: 'Differentiator',
-    sales_readiness: 'Sales readiness',
-  };
-
-  const dimColor = (v: number) =>
-    v >= 75 ? 'bg-emerald-500' : v >= 55 ? 'bg-amber-400' : 'bg-red-400';
-
-  if (stage === 'enriching' || stage === 'scoring' || stage === 'icp') {
-    return (
-      <div className="max-w-lg mx-auto px-6 py-24 text-center">
-        <div className="w-10 h-10 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-6" />
-        <p className="text-lg font-medium text-gray-900">{STAGE_LABELS[stage]}</p>
-        <p className="text-sm text-gray-500 mt-2">
-          {stage === 'enriching' && 'Pulling your professional profile and company data from Apollo...'}
-          {stage === 'scoring' && 'Analysing market demand, ICP clarity, and sales readiness...'}
-          {stage === 'icp' && 'Building your ICP and generating target list...'}
-        </p>
-      </div>
-    );
-  }
-
-  if (stage === 'score_ready' && score) {
-    return (
-      <div className="max-w-xl mx-auto px-6 py-12">
-        <div className="mb-8">
-          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Step 2 of 3 · Readiness score</p>
-          <h1 className="text-2xl font-medium text-gray-900">
-            Your idea scored{' '}
-            <span className="text-emerald-600">{score.overall_score} / 100</span>
-          </h1>
-          <p className="text-gray-500 mt-1 text-sm">
-            Recommended first target: <strong className="text-gray-700">{score.recommended_icp}</strong>
-          </p>
-        </div>
-
-        <div className="space-y-3 mb-8">
-          {Object.entries(score.dimensions).map(([key, val]) => (
-            <div key={key}>
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-gray-700">{dimLabel[key] ?? key}</span>
-                <span className="font-medium text-gray-900">{val}</span>
-              </div>
-              <div className="h-1.5 bg-gray-100 rounded-full">
-                <div className={`h-1.5 rounded-full ${dimColor(val)}`} style={{ width: `${val}%` }} />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="space-y-2 mb-8">
-          {score.insights.map((ins, i) => (
-            <div key={i} className={`flex gap-3 rounded-lg p-3 text-sm ${insightColor(ins.type)}`}>
-              <span className="font-medium flex-shrink-0">{insightIcon(ins.type)}</span>
-              <span>{ins.text}</span>
-            </div>
-          ))}
-        </div>
-
-        <button
-          onClick={buildPlaybook}
-          className="w-full bg-indigo-600 text-white rounded-lg py-3 font-medium hover:bg-indigo-700 transition-colors"
-        >
-          Build my GTM playbook →
-        </button>
-      </div>
-    );
-  }
+  if (stage === 'enriching') return <Spinner label="Gathering your profile..." sub="We're pulling together everything we can find about you and your company. This takes a few seconds." />;
+  if (stage === 'scoring') return <Spinner label="Screening your idea..." sub="Analysing market demand, ICP clarity, team signals, and differentiators. Usually about 15 seconds." />;
+  if (stage === 'icp_building') return <Spinner label="Building your GTM playbook..." sub="Evaluating GTM motions, building your outbound sequences, and finding target contacts. This takes about 30–40 seconds — worth the wait." />;
 
   return (
-    <div className="max-w-xl mx-auto px-6 py-12">
-      <div className="mb-8">
-        <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Step 1 of 3 · About you</p>
-        <h1 className="text-2xl font-medium text-gray-900">Tell us about your idea</h1>
-        <p className="text-gray-500 mt-1 text-sm">We'll screen it and score it before we spend any time together.</p>
+    <div className="min-h-screen bg-cream">
+      <div className="max-w-lg mx-auto px-8 py-14">
+
+        {/* SIGNUP */}
+        {stage === 'signup' && (
+          <>
+            <StepBar stage={stage} />
+            <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-3">Your First Customer</p>
+            <h1 className="font-serif text-3xl text-ink leading-tight mb-2">
+              {isLogin ? 'Welcome back.' : "Let's land your first customer."}
+            </h1>
+            <p className="text-sm text-ink-muted mb-8 leading-relaxed">
+              {isLogin
+                ? 'Sign in to access your dashboard and GTM playbook.'
+                : 'Create a free account. Your playbook and targets are saved so you can pick up where you left off.'}
+            </p>
+
+            {error && <ErrorBox message={error} />}
+
+            <form onSubmit={handleAuth} className="space-y-4">
+              <div>
+                <Label>Email address</Label>
+                <Input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" />
+              </div>
+              <div>
+                <Label>Password {!isLogin && <span className="normal-case text-ink-faint font-normal tracking-normal ml-1">min 8 characters</span>}</Label>
+                <Input type="password" required minLength={8} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
+              </div>
+              <div className="pt-1">
+                <PrimaryBtn>{isLogin ? 'Sign in' : 'Create account'} →</PrimaryBtn>
+              </div>
+            </form>
+
+            <p className="text-center text-sm text-ink-muted mt-6">
+              {isLogin ? "Don't have an account? " : 'Already have an account? '}
+              <button type="button" onClick={() => { setIsLogin(!isLogin); setError(null); }} className="text-teal hover:underline">
+                {isLogin ? 'Sign up free' : 'Sign in'}
+              </button>
+            </p>
+          </>
+        )}
+
+        {/* URLS */}
+        {stage === 'urls' && (
+          <>
+            <StepBar stage={stage} />
+            {account
+              ? <a href="/sessions" className="flex items-center gap-1.5 text-sm text-ink-muted hover:text-ink transition-colors mb-6">← My sessions</a>
+              : <BackBtn onClick={() => { setError(null); setStage('signup'); }} />
+            }
+            <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-3">Step 1 of 4</p>
+            <h1 className="font-serif text-3xl text-ink leading-tight mb-2">
+              {editMode ? 'Update your links' : 'Your links'}
+            </h1>
+
+            <div className="bg-teal-pale border border-teal/20 rounded p-4 mb-8">
+              <p className="text-sm text-teal leading-relaxed">
+                <strong className="font-medium">Why this helps:</strong> The more we know about you and your company, the smarter your screening and the sharper your GTM playbook will be. Everything is optional except your LinkedIn.
+              </p>
+            </div>
+
+            {error && <ErrorBox message={error} />}
+
+            <form onSubmit={handleUrls} className="space-y-4">
+              <div>
+                <Label>Session name <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">e.g. "ShortLoop GTM" or "Stealth Fintech"</span></Label>
+                <Input type="text" value={sessionName} onChange={e => setSessionName(e.target.value)} placeholder="Name this venture or session" />
+              </div>
+              <div>
+                <Label>Your LinkedIn URL <span className="text-teal normal-case font-normal tracking-normal ml-1">required</span></Label>
+                <Input type="url" required value={linkedinUrl} onChange={e => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/yourname" />
+              </div>
+              <div>
+                <Label>Company website <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">optional</span></Label>
+                <Input type="url" value={companyUrl} onChange={e => setCompanyUrl(e.target.value)} placeholder="https://yourcompany.com" />
+              </div>
+              <div>
+                <Label>Company LinkedIn <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">optional</span></Label>
+                <Input type="url" value={companyLinkedin} onChange={e => setCompanyLinkedin(e.target.value)} placeholder="https://linkedin.com/company/yourcompany" />
+              </div>
+
+              <div className="border-t border-cream-dark pt-5">
+                <Label>
+                  Business deck or pitch PDF
+                  <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">optional · gives richer screening context</span>
+                </Label>
+                <div
+                  className={`border-2 border-dashed rounded p-6 text-center cursor-pointer transition-colors ${deckFile ? 'border-teal bg-teal-pale' : 'border-cream-dark hover:border-teal/40'}`}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={handleDeckChange} />
+                  {deckParsing ? (
+                    <div className="flex items-center justify-center gap-2 text-sm text-teal">
+                      <div className="w-4 h-4 border-2 border-teal border-t-transparent rounded-full animate-spin" />
+                      Reading deck…
+                    </div>
+                  ) : deckFile ? (
+                    <>
+                      <p className="text-sm font-medium text-teal">{deckFile.name}</p>
+                      <p className="text-xs text-teal/70 mt-1">Deck parsed ✓ — context will be used in screening</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-ink-muted">Click to upload PDF</p>
+                      <p className="text-xs text-ink-faint mt-1">Pitch decks, one-pagers, product overviews</p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-1">
+                <PrimaryBtn>{(companyUrl || companyLinkedin) ? 'Fetch my details →' : 'Continue →'}</PrimaryBtn>
+              </div>
+            </form>
+          </>
+        )}
+
+        {/* CONFIRM */}
+        {stage === 'confirm' && (
+          <>
+            <StepBar stage={stage} />
+            <BackBtn onClick={() => { setError(null); setStage('urls'); }} />
+            <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-3">Step 2 of 4</p>
+            <h1 className="font-serif text-3xl text-ink leading-tight mb-2">
+              {wasAutoFilled ? 'We filled in the details.' : 'Tell us about your idea.'}
+            </h1>
+            <p className="text-sm text-ink-muted mb-8 leading-relaxed">
+              {wasAutoFilled
+                ? 'Review and edit anything that looks off — this shapes your score and playbook.'
+                : 'Be specific. The more concrete you are, the sharper your playbook.'}
+            </p>
+
+            {error && <ErrorBox message={error} />}
+
+            <form onSubmit={handleConfirm} className="space-y-5">
+              <div>
+                <Label>Product or service {wasAutoFilled && <AutoBadge />}</Label>
+                <Input type="text" required value={productDescription} onChange={e => setProductDescription(e.target.value)} placeholder="e.g. AI scheduling tool for dental practices" />
+              </div>
+              <div>
+                <Label>Problem you solve {wasAutoFilled && <AutoBadge />}</Label>
+                <Textarea required rows={4} value={problemSolved} onChange={e => setProblemSolved(e.target.value)} placeholder="Describe the specific pain your first customer feels. Include numbers if you have them." />
+              </div>
+              <div>
+                <Label>Target industry {wasAutoFilled && <AutoBadge />}</Label>
+                <Input type="text" value={industryFocus} onChange={e => setIndustryFocus(e.target.value)} placeholder="e.g. Healthcare, SaaS, Real Estate" />
+              </div>
+
+              {deckContext && (
+                <div className="bg-teal-pale border border-teal/20 rounded p-4">
+                  <p className="text-xs font-medium text-teal uppercase tracking-wide mb-1">Deck summary included ✓</p>
+                  <p className="text-xs text-teal/80 leading-relaxed line-clamp-3">{deckContext}</p>
+                </div>
+              )}
+
+              <div className="pt-1">
+                <PrimaryBtn>Screen my idea →</PrimaryBtn>
+              </div>
+            </form>
+          </>
+        )}
+
+        {/* SCORE READY */}
+        {stage === 'score_ready' && score && (
+          <>
+            <StepBar stage={stage} />
+            <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-3">Step 3 of 4</p>
+            <h1 className="font-serif text-3xl text-ink leading-tight mb-1">
+              Idea scored <span className="text-teal">{score.overall_score}/100</span>
+            </h1>
+            <p className="text-sm text-ink-muted mb-8 leading-relaxed">
+              Best first target: <span className="text-ink font-medium">{score.recommended_icp}</span>
+            </p>
+
+            <div className="space-y-4 mb-8">
+              {Object.entries(score.dimensions).map(([key, val]) => (
+                <div key={key}>
+                  <div className="flex justify-between text-sm mb-1.5">
+                    <span className="text-ink-muted">{dimLabel[key] ?? key}</span>
+                    <span className="font-medium text-ink">{val}</span>
+                  </div>
+                  <div className="h-1 bg-cream-dark rounded-full">
+                    <div
+                      className={`h-1 rounded-full transition-all duration-700 ${val >= 75 ? 'bg-teal' : val >= 55 ? 'bg-amber-400' : 'bg-red-400'}`}
+                      style={{ width: `${val}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-3 mb-8">
+              {score.insights.map((ins, i) => {
+                const styles = ins.type === 'strength'
+                  ? 'bg-teal-pale border-teal/20 text-teal'
+                  : ins.type === 'warning'
+                  ? 'bg-amber-50 border-amber-100 text-amber-800'
+                  : 'bg-cream-dark border-cream-dark text-ink-muted';
+                const icon = ins.type === 'strength' ? '✓' : ins.type === 'warning' ? '⚠' : '→';
+                return (
+                  <div key={i} className={`flex gap-3 border rounded p-4 text-sm leading-relaxed ${styles}`}>
+                    <span className="font-medium flex-shrink-0">{icon}</span>
+                    <span>{ins.text}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Team insights — collapsible */}
+            {score.team_analysis && (
+              <div className="mb-8">
+                <button
+                  type="button"
+                  onClick={() => setShowTeam(t => !t)}
+                  className="flex items-center justify-between w-full py-3 border-t border-b border-cream-dark text-sm hover:bg-cream-dark/40 transition-colors px-1 rounded"
+                >
+                  <span>
+                    <span className="font-medium text-ink">Team analysis</span>
+                    <span className="text-ink-muted ml-2">— credibility {score.team_analysis.credibility_score}/100</span>
+                  </span>
+                  <span className="text-xs text-ink-faint">{showTeam ? '▲ Hide' : '▼ Show'}</span>
+                </button>
+
+                {showTeam && (
+                  <div className="pt-4 space-y-4">
+                    <p className="text-sm text-ink italic leading-relaxed">"{score.team_analysis.signal}"</p>
+
+                    {score.team_analysis.strengths.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-ink-faint uppercase tracking-widest mb-2">Strengths</p>
+                        <ul className="space-y-1.5">
+                          {score.team_analysis.strengths.map((s, i) => (
+                            <li key={i} className="text-sm text-ink flex gap-2.5">
+                              <span className="text-teal flex-shrink-0 mt-0.5">✓</span>{s}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {score.team_analysis.gaps.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-ink-faint uppercase tracking-widest mb-2">Gaps to watch</p>
+                        <ul className="space-y-1.5">
+                          {score.team_analysis.gaps.map((g, i) => (
+                            <li key={i} className="text-sm text-ink-muted flex gap-2.5">
+                              <span className="text-amber-500 flex-shrink-0 mt-0.5">⚠</span>{g}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {teamData.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-ink-faint uppercase tracking-widest mb-2">Leadership found</p>
+                        <div className="space-y-2">
+                          {teamData.slice(0, 5).map((p: any, i: number) => {
+                            const name = (p.name ?? `${p.first_name ?? ''} ${p.last_name ?? ''}`).trim();
+                            return (
+                              <div key={i} className="flex items-center gap-3 bg-white border border-cream-dark rounded px-4 py-2.5">
+                                <div className="w-7 h-7 rounded-full bg-cream-dark flex items-center justify-center text-xs font-medium text-ink-muted flex-shrink-0">
+                                  {name[0] ?? '?'}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium text-ink truncate">{name}</p>
+                                  <p className="text-xs text-ink-faint truncate">{p.title}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <PrimaryBtn type="button" onClick={() => setStage('icp_review')}>
+              Refine my ICP &amp; build playbook →
+            </PrimaryBtn>
+          </>
+        )}
+
+        {/* ICP REVIEW */}
+        {stage === 'icp_review' && (
+          <>
+            <StepBar stage={stage} />
+            <BackBtn onClick={() => setStage('score_ready')} />
+            <p className="text-xs font-medium text-ink-muted uppercase tracking-widest mb-3">Step 4 of 4</p>
+            <h1 className="font-serif text-3xl text-ink leading-tight mb-2">Refine your ICP</h1>
+            <p className="text-sm text-ink-muted mb-8 leading-relaxed">
+              Our AI will auto-build your ideal customer profile and playbook. Override any field below to steer it — or leave everything blank to let the AI decide from your data.
+            </p>
+
+            {error && <ErrorBox message={error} />}
+            <form onSubmit={handleIcpReview} className="space-y-5">
+              {/* Persona */}
+              <div className="border border-cream-dark rounded p-5 space-y-4">
+                <p className="text-xs font-medium text-ink-faint uppercase tracking-widest">Buyer persona</p>
+                <div>
+                  <Label>Job title <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">optional — overrides AI</span></Label>
+                  <Input
+                    type="text"
+                    value={icpHints.persona_title}
+                    onChange={e => setIcpHints(h => ({ ...h, persona_title: e.target.value }))}
+                    placeholder="e.g. Head of Revenue Operations"
+                  />
+                </div>
+                <div>
+                  <Label>Seniority <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">optional — overrides AI</span></Label>
+                  <SelectInput
+                    value={icpHints.persona_seniority}
+                    onChange={e => setIcpHints(h => ({ ...h, persona_seniority: e.target.value }))}
+                  >
+                    <option value="">AI decides</option>
+                    <option value="C-Suite">C-Suite (CEO, CTO, CMO…)</option>
+                    <option value="VP">VP level</option>
+                    <option value="Director">Director level</option>
+                    <option value="Manager">Manager level</option>
+                    <option value="IC">Individual contributor</option>
+                  </SelectInput>
+                </div>
+              </div>
+
+              {/* Company */}
+              <div className="border border-cream-dark rounded p-5 space-y-4">
+                <p className="text-xs font-medium text-ink-faint uppercase tracking-widest">Target company</p>
+                <div>
+                  <Label>Industries <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">comma-separated · optional</span></Label>
+                  <Input
+                    type="text"
+                    value={icpHints.industries}
+                    onChange={e => setIcpHints(h => ({ ...h, industries: e.target.value }))}
+                    placeholder="e.g. SaaS, Healthcare, Fintech"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Min employees</Label>
+                    <Input
+                      type="number"
+                      value={icpHints.employee_min}
+                      onChange={e => setIcpHints(h => ({ ...h, employee_min: e.target.value }))}
+                      placeholder="e.g. 50"
+                    />
+                  </div>
+                  <div>
+                    <Label>Max employees</Label>
+                    <Input
+                      type="number"
+                      value={icpHints.employee_max}
+                      onChange={e => setIcpHints(h => ({ ...h, employee_max: e.target.value }))}
+                      placeholder="e.g. 500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Deal */}
+              <div className="border border-cream-dark rounded p-5 space-y-4">
+                <p className="text-xs font-medium text-ink-faint uppercase tracking-widest">Deal parameters</p>
+                <div>
+                  <Label>Sales motion <span className="text-ink-faint normal-case font-normal tracking-normal ml-1">optional — overrides AI</span></Label>
+                  <SelectInput
+                    value={icpHints.sales_motion}
+                    onChange={e => setIcpHints(h => ({ ...h, sales_motion: e.target.value }))}
+                  >
+                    <option value="">AI decides</option>
+                    <option value="self-serve">Self-serve (product-led)</option>
+                    <option value="assisted">Assisted (founder-led)</option>
+                    <option value="enterprise">Enterprise (sales-led)</option>
+                  </SelectInput>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Min deal (USD)</Label>
+                    <Input
+                      type="number"
+                      value={icpHints.deal_min}
+                      onChange={e => setIcpHints(h => ({ ...h, deal_min: e.target.value }))}
+                      placeholder="1000"
+                    />
+                  </div>
+                  <div>
+                    <Label>Max deal (USD)</Label>
+                    <Input
+                      type="number"
+                      value={icpHints.deal_max}
+                      onChange={e => setIcpHints(h => ({ ...h, deal_max: e.target.value }))}
+                      placeholder="10000"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-1">
+                <PrimaryBtn>Build my GTM playbook →</PrimaryBtn>
+              </div>
+            </form>
+          </>
+        )}
+
       </div>
-
-      {error && (
-        <div className="mb-6 p-3 bg-red-50 border border-red-100 rounded-lg text-sm text-red-700">{error}</div>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm text-gray-600 mb-1.5">Your email</label>
-            <input
-              type="email"
-              required
-              value={form.email}
-              onChange={set('email')}
-              placeholder="you@company.com"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1.5">Your LinkedIn URL</label>
-            <input
-              type="url"
-              required
-              value={form.linkedin_url}
-              onChange={set('linkedin_url')}
-              placeholder="linkedin.com/in/yourname"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm text-gray-600 mb-1.5">Company website <span className="text-gray-400">(optional)</span></label>
-            <input
-              type="url"
-              value={form.company_url}
-              onChange={set('company_url')}
-              placeholder="https://yourcompany.com"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1.5">Company LinkedIn <span className="text-gray-400">(optional)</span></label>
-            <input
-              type="url"
-              value={form.company_linkedin}
-              onChange={set('company_linkedin')}
-              placeholder="linkedin.com/company/..."
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-600 mb-1.5">What's your product or service?</label>
-          <input
-            type="text"
-            required
-            value={form.product_description}
-            onChange={set('product_description')}
-            placeholder="e.g. AI scheduling tool for dental practices"
-            className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-600 mb-1.5">What problem does it solve? (2–3 sentences)</label>
-          <textarea
-            required
-            rows={3}
-            value={form.problem_solved}
-            onChange={set('problem_solved')}
-            placeholder="Describe the specific pain your first customer feels. Be concrete — include numbers if you have them."
-            className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm text-gray-600 mb-1.5">Expected deal size</label>
-            <select
-              value={form.ticket_size}
-              onChange={set('ticket_size')}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-            >
-              <option value="">Select range</option>
-              <option value="under_1k">Under $1K/yr</option>
-              <option value="1k_10k">$1K – $10K/yr</option>
-              <option value="10k_50k">$10K – $50K/yr</option>
-              <option value="50k_plus">$50K+/yr</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1.5">Target industry</label>
-            <input
-              type="text"
-              value={form.industry_focus}
-              onChange={set('industry_focus')}
-              placeholder="e.g. Healthcare, SaaS, Retail"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            />
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          className="w-full bg-indigo-600 text-white rounded-lg py-3 font-medium hover:bg-indigo-700 transition-colors mt-2"
-        >
-          Screen my idea →
-        </button>
-      </form>
     </div>
   );
 }

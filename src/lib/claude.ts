@@ -4,21 +4,43 @@ export function getClaudeClient(apiKey: string) {
   return new Anthropic({ apiKey });
 }
 
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const isOverloaded = err?.status === 529 || err?.message?.includes('overloaded');
+      const isRateLimit = err?.status === 429;
+      if ((isOverloaded || isRateLimit) && attempt < maxAttempts) {
+        const delay = attempt * 8000; // 8s, 16s
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error('Max retry attempts exceeded');
+}
+
 export async function runAgent(
   client: Anthropic,
   systemPrompt: string,
   userMessage: string,
   model = 'claude-sonnet-4-6',
+  maxTokens = 4096,
 ): Promise<string> {
-  const response = await client.messages.create({
+  const response = await withRetry(() => client.messages.create({
     model,
-    max_tokens: 4096,
+    max_tokens: maxTokens,
     system: systemPrompt,
     messages: [{ role: 'user', content: userMessage }],
-  });
+  }));
 
   const block = response.content[0];
   if (block.type !== 'text') throw new Error('Unexpected response type from Claude');
+  if (response.stop_reason === 'max_tokens') {
+    throw new Error(`Claude response truncated at ${maxTokens} tokens — the output was too long. Try reducing scope.`);
+  }
   return block.text;
 }
 
@@ -27,12 +49,23 @@ export async function runAgentJSON<T>(
   systemPrompt: string,
   userMessage: string,
   model = 'claude-sonnet-4-6',
+  maxTokens = 4096,
 ): Promise<T> {
   const raw = await runAgent(
     client,
     systemPrompt + '\n\nRespond with valid JSON only. No prose, no markdown fences.',
     userMessage,
     model,
+    maxTokens,
   );
-  return JSON.parse(raw) as T;
+  // Strip any markdown fences Claude may still emit despite the instruction
+  const cleaned = raw
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .trim();
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
+    throw new Error(`JSON parse failed. Claude output (first 600 chars): ${cleaned.slice(0, 600)}`);
+  }
 }
