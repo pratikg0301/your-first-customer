@@ -66,6 +66,28 @@ export async function enrichOrganizationByDomain(
   return data.organization ?? null;
 }
 
+export async function searchLeadership(
+  domain: string,
+  apiKey: string,
+): Promise<unknown[]> {
+  const res = await fetch(`${APOLLO_BASE}/mixed_people/search`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Api-Key': apiKey,
+    },
+    body: JSON.stringify({
+      organization_domains: [domain],
+      person_titles: ['CEO', 'CTO', 'COO', 'VP', 'Head of', 'Director', 'Founder', 'Co-founder'],
+      per_page: 10,
+    }),
+  });
+
+  if (!res.ok) return [];
+  const data = await res.json<{ people: unknown[] }>();
+  return data.people ?? [];
+}
+
 export async function searchPeople(
   params: {
     titles?: string[];
